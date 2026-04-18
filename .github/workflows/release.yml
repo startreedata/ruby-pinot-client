@@ -100,16 +100,16 @@ jobs:
           Add to your \`Gemfile\`:
 
           \`\`\`ruby
-          gem "pinot", "~> ${{ steps.version.outputs.version }}"
+          gem "pinot-client", "~> ${{ steps.version.outputs.version }}"
           \`\`\`
 
           Or install directly:
 
           \`\`\`bash
-          gem install pinot -v ${{ steps.version.outputs.version }}
+          gem install pinot-client -v ${{ steps.version.outputs.version }}
           \`\`\`
 
-          Published on RubyGems.org: https://rubygems.org/gems/pinot
+          Published on RubyGems.org: https://rubygems.org/gems/pinot-client
 
           ## Quick start
 
@@ -159,7 +159,7 @@ jobs:
           :rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}
           EOF
           chmod 0600 ~/.gem/credentials
-          gem push pinot-${{ steps.version.outputs.version }}.gem
+          gem push pinot-client-${{ steps.version.outputs.version }}.gem
 
       - name: Update major version tag
         if: ${{ !contains(steps.version.outputs.tag, '-') }}

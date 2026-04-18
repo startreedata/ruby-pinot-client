@@ -10,13 +10,13 @@ A Ruby client library for [Apache Pinot](https://pinot.apache.org/). Mirrors the
 Add to your `Gemfile`:
 
 ```ruby
-gem "pinot", "~> 1.0"
+gem "pinot-client", "~> 1.0"
 ```
 
 Or install directly:
 
 ```bash
-gem install pinot
+gem install pinot-client
 ```
 
 ## Quick Start

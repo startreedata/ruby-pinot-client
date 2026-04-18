@@ -1,7 +1,7 @@
 require_relative "lib/pinot/version"
 
 Gem::Specification.new do |spec|
-  spec.name = "pinot"
+  spec.name = "pinot-client"
   spec.version = Pinot::VERSION
   spec.authors = ["Xiang Fu"]
   spec.summary = "Apache Pinot Ruby client"
