@@ -1,0 +1,143 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v1.0.0)"
+        required: true
+        type: string
+      ref:
+        description: "Branch or commit to tag (default: main)"
+        required: false
+        default: "main"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    name: Create Release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0
+
+      - name: Validate tag format
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          if [[ ! $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+            echo "Invalid tag format: $TAG"
+            echo "Expected format: v1.0.0 or v1.0.0-alpha"
+            exit 1
+          fi
+          echo "Tag format is valid: $TAG"
+
+      - name: Check tag does not already exist
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          if git tag -l | grep -q "^$TAG$"; then
+            echo "Tag $TAG already exists locally"
+            exit 1
+          fi
+          if git ls-remote --tags origin | grep -q "refs/tags/$TAG$"; then
+            echo "Tag $TAG already exists on remote"
+            exit 1
+          fi
+          echo "Tag $TAG is available"
+
+      - name: Show commit info
+        run: |
+          echo "Tagging ref: ${{ github.event.inputs.ref }}"
+          echo "Commit SHA:  $(git rev-parse HEAD)"
+          echo "Commit msg:  $(git log -1 --pretty=format:'%s')"
+          echo "Commit date: $(git log -1 --pretty=format:'%ci')"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create and push tag
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "Tag $TAG created and pushed"
+
+      - name: Extract version
+        id: version
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG"         >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "major=$(echo $VERSION | cut -d. -f1)" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          PREVIOUS_TAG=$(git tag -l "v*" --sort=-version:refname | grep -v "^$TAG$" | head -n 1)
+          if [ -z "$PREVIOUS_TAG" ]; then
+            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+            RANGE_LABEL="initial release"
+          else
+            RANGE_LABEL="$PREVIOUS_TAG...$TAG"
+          fi
+
+          CHANGELOG=$(git log --oneline --pretty=format:"- %s" ${PREVIOUS_TAG}..HEAD)
+
+          cat > changelog.md << EOF
+          ## What's Changed
+
+          $CHANGELOG
+
+          ## Installation
+
+          Add to your \`Gemfile\`:
+
+          \`\`\`ruby
+          gem "pinot", "~> ${{ steps.version.outputs.version }}"
+          \`\`\`
+
+          Or install directly:
+
+          \`\`\`bash
+          gem install pinot -v ${{ steps.version.outputs.version }}
+          \`\`\`
+
+          ## Quick start
+
+          \`\`\`ruby
+          require "pinot"
+
+          client = Pinot.from_broker_list(["localhost:8000"])
+          resp   = client.execute_sql("myTable", "SELECT * FROM myTable LIMIT 10")
+          puts resp.result_table.get_string(0, 0)
+          \`\`\`
+
+          **Full changelog**: https://github.com/startreedata/ruby-pinot-client/compare/${RANGE_LABEL}
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.tag }}
+          body_path: changelog.md
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update major version tag
+        if: ${{ !contains(steps.version.outputs.tag, '-') }}
+        run: |
+          MAJOR_TAG="v${{ steps.version.outputs.major }}"
+          git tag -f "$MAJOR_TAG"
+          git push origin "$MAJOR_TAG" --force
+          echo "Major version tag $MAJOR_TAG updated"
