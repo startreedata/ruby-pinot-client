@@ -134,6 +134,33 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
+      - name: Bump version.rb to match tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i "s/VERSION = .*/VERSION = \"$VERSION\"/" lib/pinot/version.rb
+          echo "Version set to $VERSION"
+
+      - name: Build gem
+        run: gem build pinot.gemspec
+
+      - name: Publish to GitHub Packages
+        run: |
+          mkdir -p ~/.gem
+          cat > ~/.gem/credentials << EOF
+          ---
+          :github: Bearer ${{ secrets.GITHUB_TOKEN }}
+          EOF
+          chmod 0600 ~/.gem/credentials
+          gem push --key github \
+            --host https://rubygems.pkg.github.com/startreedata \
+            pinot-${{ steps.version.outputs.version }}.gem
+
       - name: Update major version tag
         if: ${{ !contains(steps.version.outputs.tag, '-') }}
         run: |

@@ -10,6 +10,13 @@ Gem::Specification.new do |spec|
   spec.license = "Apache-2.0"
   spec.required_ruby_version = ">= 2.6"
 
+  spec.metadata = {
+    "homepage_uri"    => spec.homepage,
+    "source_code_uri" => spec.homepage,
+    "bug_tracker_uri" => "#{spec.homepage}/issues",
+    "github_repo"     => "ssh://git@github.com/startreedata/ruby-pinot-client"
+  }
+
   spec.files = Dir["lib/**/*", "LICENSE", "README.md"]
   spec.require_paths = ["lib"]
 
