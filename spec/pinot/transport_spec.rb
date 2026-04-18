@@ -187,6 +187,78 @@ RSpec.describe Pinot::JsonHttpTransport do
 end
 
 RSpec.describe Pinot::HttpClient do
+  let(:url) { "http://localhost:8000/query/sql" }
+
+  def make_fake_http(response)
+    http = double("Net::HTTP")
+    allow(http).to receive(:use_ssl=)
+    allow(http).to receive(:open_timeout=)
+    allow(http).to receive(:read_timeout=)
+    allow(http).to receive(:start).and_return(http)
+    allow(http).to receive(:finish)
+    allow(http).to receive(:request).and_return(response)
+    http
+  end
+
+  def make_response(body = "ok")
+    resp = double("Net::HTTPResponse")
+    allow(resp).to receive(:code).and_return("200")
+    allow(resp).to receive(:body).and_return(body)
+    resp
+  end
+
+  describe "connection reuse" do
+    it "reuses a single Net::HTTP connection across multiple requests" do
+      stub_request(:post, url).to_return(status: 200, body: "ok")
+
+      fake_http = make_fake_http(make_response)
+      expect(Net::HTTP).to receive(:new).once.and_return(fake_http)
+
+      client = Pinot::HttpClient.new
+      3.times { client.post(url, body: '{"sql":"select 1"}', headers: {}) }
+    end
+  end
+
+  describe "error discards connection" do
+    it "creates a fresh connection after a request raises an error" do
+      stub_request(:post, url).to_return(status: 200, body: "ok")
+
+      first_http = double("Net::HTTP first")
+      allow(first_http).to receive(:use_ssl=)
+      allow(first_http).to receive(:start).and_return(first_http)
+      allow(first_http).to receive(:finish)
+      allow(first_http).to receive(:request).and_raise(Errno::ECONNRESET)
+
+      second_http = make_fake_http(make_response)
+
+      expect(Net::HTTP).to receive(:new).twice.and_return(first_http, second_http)
+
+      client = Pinot::HttpClient.new
+
+      expect { client.post(url, body: '{"sql":"select 1"}', headers: {}) }.to raise_error(Errno::ECONNRESET)
+      client.post(url, body: '{"sql":"select 1"}', headers: {})
+    end
+  end
+
+  describe "pool cap" do
+    it "caps the pool at MAX_POOL_SIZE connections" do
+      client = Pinot::HttpClient.new
+      key = "localhost:8000"
+      uri = URI.parse(url)
+
+      # Checkin MAX_POOL_SIZE + 1 connections — the last one should be finished, not pooled
+      n = Pinot::HttpClient::MAX_POOL_SIZE + 1
+      connections = Array.new(n) { double("Net::HTTP", finish: nil) }
+      connections.each { |http| client.send(:checkin, key, http) }
+
+      pool_size = client.instance_variable_get(:@pool).values.map(&:size).sum
+      expect(pool_size).to eq(Pinot::HttpClient::MAX_POOL_SIZE)
+
+      # The overflow connection should have been finished
+      expect(connections.last).to have_received(:finish)
+    end
+  end
+
   describe "timeout configuration" do
     it "sets open_timeout, read_timeout, and write_timeout when timeout is provided" do
       stub_request(:post, "http://localhost:8000/query/sql")
@@ -198,6 +270,8 @@ RSpec.describe Pinot::HttpClient do
       allow(http_double).to receive(:open_timeout=)
       allow(http_double).to receive(:read_timeout=)
       allow(http_double).to receive(:write_timeout=)
+      allow(http_double).to receive(:start).and_return(http_double)
+      allow(http_double).to receive(:finish)
       allow(http_double).to receive(:request).and_return(
         instance_double(Net::HTTPResponse, code: "200", body: "{}")
       )
@@ -217,6 +291,8 @@ RSpec.describe Pinot::HttpClient do
       allow(http_double).to receive(:open_timeout=)
       allow(http_double).to receive(:read_timeout=)
       allow(http_double).to receive(:write_timeout=)
+      allow(http_double).to receive(:start).and_return(http_double)
+      allow(http_double).to receive(:finish)
       allow(http_double).to receive(:request).and_return(
         instance_double(Net::HTTPResponse, code: "200", body: "{}")
       )

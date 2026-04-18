@@ -6,28 +6,67 @@ require "openssl"
 
 module Pinot
   class HttpClient
+    MAX_POOL_SIZE = 5
+    KEEP_ALIVE_TIMEOUT = 30
+
     def initialize(timeout: nil, tls_config: nil)
       @timeout = timeout
       @tls_config = tls_config
+      @pool = {}
+      @pool_mutex = Mutex.new
     end
 
     def post(url, body:, headers: {})
       uri = URI.parse(url)
-      http = Net::HTTP.new(uri.host, uri.port)
-      configure_ssl(http, uri)
-      if @timeout
-        http.open_timeout = @timeout
-        http.read_timeout = @timeout
-        http.write_timeout = @timeout
+      with_connection(url) do |http|
+        req = Net::HTTP::Post.new(uri.request_uri)
+        headers.each { |k, v| req[k] = v }
+        req.body = body
+        http.request(req)
       end
-      req = Net::HTTP::Post.new(uri.request_uri)
-      headers.each { |k, v| req[k] = v }
-      req.body = body
-      http.request(req)
     end
 
     def get(url, headers: {})
       uri = URI.parse(url)
+      with_connection(url) do |http|
+        req = Net::HTTP::Get.new(uri.request_uri)
+        headers.each { |k, v| req[k] = v }
+        http.request(req)
+      end
+    end
+
+    private
+
+    def with_connection(url)
+      uri = URI.parse(url)
+      key = "#{uri.host}:#{uri.port}"
+      http = checkout(key, uri)
+      begin
+        result = yield http
+        checkin(key, http)
+        result
+      rescue => e
+        http.finish rescue nil
+        raise e
+      end
+    end
+
+    def checkout(key, uri)
+      @pool_mutex.synchronize { @pool[key]&.pop } || new_connection(uri)
+    end
+
+    def checkin(key, http)
+      @pool_mutex.synchronize do
+        pool_for_key = @pool[key] ||= []
+        if pool_for_key.size < MAX_POOL_SIZE
+          pool_for_key.push(http)
+        else
+          http.finish rescue nil
+        end
+      end
+    end
+
+    def new_connection(uri)
       http = Net::HTTP.new(uri.host, uri.port)
       configure_ssl(http, uri)
       if @timeout
@@ -35,12 +74,9 @@ module Pinot
         http.read_timeout = @timeout
         http.write_timeout = @timeout
       end
-      req = Net::HTTP::Get.new(uri.request_uri)
-      headers.each { |k, v| req[k] = v }
-      http.request(req)
+      http.start
+      http
     end
-
-    private
 
     def configure_ssl(http, uri)
       if uri.scheme == "https"
