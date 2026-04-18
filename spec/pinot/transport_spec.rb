@@ -229,4 +229,51 @@ RSpec.describe Pinot::HttpClient do
       expect(http_double).not_to have_received(:write_timeout=)
     end
   end
+
+  describe "TLS configuration" do
+    describe "when tls_config has insecure_skip_verify: true" do
+      it "configures Net::HTTP with VERIFY_NONE for HTTPS URLs" do
+        tls = Pinot::TlsConfig.new(insecure_skip_verify: true)
+        client = Pinot::HttpClient.new(tls_config: tls)
+
+        mock_http = instance_double(Net::HTTP)
+        allow(mock_http).to receive(:use_ssl=)
+        allow(mock_http).to receive(:verify_mode=)
+        allow(mock_http).to receive(:open_timeout=)
+        allow(mock_http).to receive(:read_timeout=)
+        allow(mock_http).to receive(:request)
+
+        mock_response = instance_double(Net::HTTPResponse, code: "200", body: "{}")
+        allow(mock_http).to receive(:request).and_return(mock_response)
+
+        allow(Net::HTTP).to receive(:new).and_return(mock_http)
+
+        client.get("https://localhost:8000/query/sql")
+
+        expect(mock_http).to have_received(:use_ssl=).with(true)
+        expect(mock_http).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_NONE)
+      end
+    end
+
+    describe "when tls_config is nil (default)" do
+      it "does not apply SSL config for HTTP URLs" do
+        client = Pinot::HttpClient.new
+
+        mock_http = instance_double(Net::HTTP)
+        allow(mock_http).to receive(:use_ssl=)
+        allow(mock_http).to receive(:verify_mode=)
+        allow(mock_http).to receive(:request)
+
+        mock_response = instance_double(Net::HTTPResponse, code: "200", body: "{}")
+        allow(mock_http).to receive(:request).and_return(mock_response)
+
+        allow(Net::HTTP).to receive(:new).and_return(mock_http)
+
+        client.get("http://localhost:8000/query/sql")
+
+        expect(mock_http).to have_received(:use_ssl=).with(false)
+        expect(mock_http).not_to have_received(:verify_mode=)
+      end
+    end
+  end
 end
