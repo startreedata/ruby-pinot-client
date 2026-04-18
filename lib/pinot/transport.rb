@@ -44,13 +44,16 @@ module Pinot
       "Content-Type" => "application/json; charset=utf-8"
     }.freeze
 
-    def initialize(http_client:, extra_headers: {}, timeout_ms: nil)
+    def initialize(http_client:, extra_headers: {}, timeout_ms: nil, logger: nil)
       @http_client = http_client
       @extra_headers = extra_headers
       @timeout_ms = timeout_ms
+      @logger = logger
     end
 
     def execute(broker_address, request)
+      logger.debug "Pinot query to #{broker_address}: #{request.query}"
+
       url = build_url(broker_address, request.query_format)
       body = build_body(request)
       headers = DEFAULT_HEADERS
@@ -60,6 +63,7 @@ module Pinot
       resp = @http_client.post(url, body: body, headers: headers)
 
       unless resp.code.to_i == 200
+        logger.error "Pinot broker returned HTTP #{resp.code}"
         raise TransportError, "http exception with HTTP status code #{resp.code}"
       end
 
@@ -71,6 +75,10 @@ module Pinot
     end
 
     private
+
+    def logger
+      @logger || Pinot::Logging.logger
+    end
 
     def build_url(broker_address, query_format)
       base = if broker_address.start_with?("http://", "https://")

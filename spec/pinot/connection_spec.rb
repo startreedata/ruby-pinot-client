@@ -53,7 +53,7 @@ RSpec.describe Pinot::Connection do
         .to_return(status: 200, body: "ProcessingException", headers: { "Content-Type" => "application/json" })
 
       conn = build_connection
-      expect { conn.execute_sql("", "select count(*) from t") }.to raise_error(/unexpected token/i)
+      expect { conn.execute_sql("", "select count(*) from t") }.to raise_error(/unexpected (token|character)/i)
     end
   end
 

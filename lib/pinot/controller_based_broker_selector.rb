@@ -7,16 +7,18 @@ module Pinot
     CONTROLLER_API_PATH = "/v2/brokers/tables?state=ONLINE"
     DEFAULT_UPDATE_FREQ_MS = 1000
 
-    def initialize(config, http_client = nil)
+    def initialize(config, http_client = nil, logger: nil)
       super()
       @config = config
       @internal_http = http_client || HttpClient.new
+      @logger = logger
     end
 
     def init
       @config.update_freq_ms ||= DEFAULT_UPDATE_FREQ_MS
       @controller_url = build_controller_url(@config.controller_address)
       fetch_and_update
+      logger.info "ControllerBasedBrokerSelector initialized with #{@all_broker_list.size} brokers"
       start_background_refresh
       nil
     end
@@ -57,6 +59,10 @@ module Pinot
       update_broker_data(cr.extract_broker_list, cr.extract_table_to_broker_map)
     end
 
+    def logger
+      @logger || Pinot::Logging.logger
+    end
+
     def start_background_refresh
       interval = @config.update_freq_ms / 1000.0
       Thread.new do
@@ -65,7 +71,7 @@ module Pinot
           begin
             fetch_and_update
           rescue => e
-            warn "Pinot: error refreshing broker data: #{e.message}"
+            logger.warn "Pinot controller refresh failed: #{e.message}"
           end
         end
       end

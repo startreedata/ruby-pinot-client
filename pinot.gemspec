@@ -20,6 +20,8 @@ Gem::Specification.new do |spec|
   spec.files = Dir["lib/**/*", "LICENSE", "README.md"]
   spec.require_paths = ["lib"]
 
+  spec.add_dependency "logger"
+
   spec.add_development_dependency "rspec", "~> 3.12"
   spec.add_development_dependency "webmock", "~> 3.18"
   spec.add_development_dependency "rake", "~> 13.0"
