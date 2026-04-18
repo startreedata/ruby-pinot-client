@@ -58,7 +58,7 @@ module Pinot
       resp = @http_client.post(url, body: body, headers: headers)
 
       unless resp.code.to_i == 200
-        raise "http exception with HTTP status code #{resp.code}"
+        raise TransportError, "http exception with HTTP status code #{resp.code}"
       end
 
       begin

@@ -51,7 +51,7 @@ module Pinot
 
     def set(index, value)
       @mutex.synchronize do
-        raise "prepared statement is closed" if @closed
+        raise PreparedStatementClosedError, "prepared statement is closed" if @closed
         unless index >= 1 && index <= @param_count
           raise "parameter index #{index} is out of range [1, #{@param_count}]"
         end
@@ -62,7 +62,7 @@ module Pinot
 
     def execute
       @mutex.synchronize do
-        raise "prepared statement is closed" if @closed
+        raise PreparedStatementClosedError, "prepared statement is closed" if @closed
         @parameters.each_with_index do |p, i|
           raise "parameter at index #{i + 1} is not set" if p.nil?
         end
@@ -76,7 +76,7 @@ module Pinot
     end
 
     def execute_with_params(*params)
-      @mutex.synchronize { raise "prepared statement is closed" if @closed }
+      @mutex.synchronize { raise PreparedStatementClosedError, "prepared statement is closed" if @closed }
       if params.length != @param_count
         raise "expected #{@param_count} parameters, got #{params.length}"
       end
@@ -90,7 +90,7 @@ module Pinot
 
     def clear_parameters
       @mutex.synchronize do
-        raise "prepared statement is closed" if @closed
+        raise PreparedStatementClosedError, "prepared statement is closed" if @closed
         @parameters.fill(nil)
       end
       nil

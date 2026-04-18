@@ -32,7 +32,7 @@ RSpec.describe Pinot::JsonHttpTransport do
 
       transport = build_transport
       req = Pinot::Request.new("sql", "select count(*) from t", false, false)
-      expect { transport.execute(broker, req) }.to raise_error(/400/)
+      expect { transport.execute(broker, req) }.to raise_error(Pinot::TransportError, /400/)
     end
   end
 

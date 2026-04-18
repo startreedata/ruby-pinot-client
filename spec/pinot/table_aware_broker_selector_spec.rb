@@ -29,16 +29,16 @@ RSpec.describe Pinot::TableAwareBrokerSelector do
     end
 
     it "raises for unknown table" do
-      expect { selector.select_broker("unknownTable") }.to raise_error(/unable to find table: unknownTable/)
+      expect { selector.select_broker("unknownTable") }.to raise_error(Pinot::TableNotFoundError, /unable to find table: unknownTable/)
     end
 
     it "raises for table with empty broker list" do
-      expect { selector.select_broker("emptyTable") }.to raise_error(/no available broker for table: emptyTable/)
+      expect { selector.select_broker("emptyTable") }.to raise_error(Pinot::BrokerNotFoundError, /no available broker for table: emptyTable/)
     end
 
     it "raises when all_broker_list is empty and table is empty" do
       sel = Pinot::TableAwareBrokerSelector.new
-      expect { sel.select_broker("") }.to raise_error(/no available broker/)
+      expect { sel.select_broker("") }.to raise_error(Pinot::BrokerNotFoundError, /no available broker/)
     end
   end
 

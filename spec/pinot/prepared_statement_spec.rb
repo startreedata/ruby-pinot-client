@@ -181,25 +181,25 @@ RSpec.describe Pinot::PreparedStatementImpl do
     it "prevents set after close" do
       stmt = conn.prepare("testTable", "SELECT * FROM testTable WHERE id = ?")
       stmt.close
-      expect { stmt.set_int(1, 123) }.to raise_error(/prepared statement is closed/)
+      expect { stmt.set_int(1, 123) }.to raise_error(Pinot::PreparedStatementClosedError, /prepared statement is closed/)
     end
 
     it "prevents execute after close" do
       stmt = conn.prepare("testTable", "SELECT * FROM testTable WHERE id = ?")
       stmt.close
-      expect { stmt.execute }.to raise_error(/prepared statement is closed/)
+      expect { stmt.execute }.to raise_error(Pinot::PreparedStatementClosedError, /prepared statement is closed/)
     end
 
     it "prevents execute_with_params after close" do
       stmt = conn.prepare("testTable", "SELECT * FROM testTable WHERE id = ?")
       stmt.close
-      expect { stmt.execute_with_params(123) }.to raise_error(/prepared statement is closed/)
+      expect { stmt.execute_with_params(123) }.to raise_error(Pinot::PreparedStatementClosedError, /prepared statement is closed/)
     end
 
     it "prevents clear_parameters after close" do
       stmt = conn.prepare("testTable", "SELECT * FROM testTable WHERE id = ?")
       stmt.close
-      expect { stmt.clear_parameters }.to raise_error(/prepared statement is closed/)
+      expect { stmt.clear_parameters }.to raise_error(Pinot::PreparedStatementClosedError, /prepared statement is closed/)
     end
   end
 

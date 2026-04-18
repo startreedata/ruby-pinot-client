@@ -20,7 +20,7 @@ module Pinot
     )
 
     selector = build_selector(config, inner)
-    raise ArgumentError, "must specify broker_list or controller_config" unless selector
+    raise ConfigurationError, "must specify broker_list or controller_config" unless selector
 
     conn = Connection.new(
       transport: transport,
