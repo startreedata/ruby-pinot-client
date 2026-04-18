@@ -7,7 +7,7 @@ RSpec.describe Pinot::SimpleBrokerSelector do
 
     it "raises with an empty list" do
       sel = Pinot::SimpleBrokerSelector.new([])
-      expect { sel.init }.to raise_error("no pre-configured broker lists")
+      expect { sel.init }.to raise_error(Pinot::BrokerNotFoundError, "no pre-configured broker lists")
     end
   end
 
@@ -22,7 +22,7 @@ RSpec.describe Pinot::SimpleBrokerSelector do
 
     it "raises when list is empty" do
       sel = Pinot::SimpleBrokerSelector.new([])
-      expect { sel.select_broker("") }.to raise_error("no pre-configured broker lists")
+      expect { sel.select_broker("") }.to raise_error(Pinot::BrokerNotFoundError, "no pre-configured broker lists")
     end
   end
 end

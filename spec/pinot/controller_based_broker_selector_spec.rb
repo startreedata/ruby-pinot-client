@@ -33,7 +33,7 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
 
       config = Pinot::ControllerConfig.new(controller_address: "localhost:9000")
       sel = Pinot::ControllerBasedBrokerSelector.new(config)
-      expect { sel.init }.to raise_error(/500/)
+      expect { sel.init }.to raise_error(Pinot::TransportError, /500/)
     end
 
     it "raises on network error" do
@@ -51,7 +51,7 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
 
       config = Pinot::ControllerConfig.new(controller_address: "localhost:9000")
       sel = Pinot::ControllerBasedBrokerSelector.new(config)
-      expect { sel.init }.to raise_error(/decoding controller API response/)
+      expect { sel.init }.to raise_error(Pinot::ConfigurationError, /decoding controller API response/)
     end
   end
 
@@ -75,7 +75,7 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
 
     it "raises for unsupported scheme" do
       expect { sel.build_controller_url("smb://nope:1234") }
-        .to raise_error(/unsupported controller URL scheme: smb/)
+        .to raise_error(Pinot::ConfigurationError, /unsupported controller URL scheme: smb/)
     end
   end
 

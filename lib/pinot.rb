@@ -4,6 +4,7 @@ require "json"
 require "bigdecimal"
 require "securerandom"
 
+require_relative "pinot/errors"
 require_relative "pinot/version"
 require_relative "pinot/config"
 require_relative "pinot/request"

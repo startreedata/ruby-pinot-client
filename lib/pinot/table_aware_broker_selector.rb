@@ -19,12 +19,12 @@ module Pinot
       table_name = extract_table_name(table.to_s)
       @mutex.synchronize do
         if table_name.empty?
-          raise "no available broker" if @all_broker_list.empty?
+          raise BrokerNotFoundError, "no available broker" if @all_broker_list.empty?
           return @all_broker_list.sample
         end
         brokers = @table_broker_map[table_name]
-        raise "unable to find table: #{table}" unless brokers
-        raise "no available broker for table: #{table}" if brokers.empty?
+        raise TableNotFoundError, "unable to find table: #{table}" unless brokers
+        raise BrokerNotFoundError, "no available broker for table: #{table}" if brokers.empty?
         brokers.sample
       end
     end

@@ -7,11 +7,11 @@ module Pinot
     end
 
     def init
-      raise "no pre-configured broker lists" if @broker_list.empty?
+      raise BrokerNotFoundError, "no pre-configured broker lists" if @broker_list.empty?
     end
 
     def select_broker(_table)
-      raise "no pre-configured broker lists" if @broker_list.empty?
+      raise BrokerNotFoundError, "no pre-configured broker lists" if @broker_list.empty?
       @broker_list.sample
     end
   end

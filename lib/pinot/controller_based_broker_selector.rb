@@ -26,7 +26,7 @@ module Pinot
       if addr.include?("://")
         scheme = addr.split("://").first
         unless %w[http https].include?(scheme)
-          raise "unsupported controller URL scheme: #{scheme}"
+          raise ConfigurationError, "unsupported controller URL scheme: #{scheme}"
         end
         addr.chomp("/") + CONTROLLER_API_PATH
       else
@@ -43,14 +43,14 @@ module Pinot
       resp = @internal_http.get(@controller_url, headers: headers)
 
       unless resp.code.to_i == 200
-        raise "controller API returned HTTP status code #{resp.code}"
+        raise TransportError, "controller API returned HTTP status code #{resp.code}"
       end
 
       body = resp.body
       begin
         raw = JSON.parse(body)
       rescue JSON::ParserError => e
-        raise "error decoding controller API response: #{e.message}"
+        raise ConfigurationError, "error decoding controller API response: #{e.message}"
       end
 
       cr = ControllerResponse.new(raw)
