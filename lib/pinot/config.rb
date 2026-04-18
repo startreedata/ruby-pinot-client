@@ -11,7 +11,7 @@ module Pinot
 
   class ClientConfig
     attr_accessor :broker_list, :http_timeout, :extra_http_header,
-                  :use_multistage_engine, :controller_config, :logger
+                  :use_multistage_engine, :controller_config, :logger, :tls_config
 
     def initialize(
       broker_list: [],
@@ -19,7 +19,8 @@ module Pinot
       extra_http_header: {},
       use_multistage_engine: false,
       controller_config: nil,
-      logger: nil
+      logger: nil,
+      tls_config: nil
     )
       @broker_list = broker_list
       @http_timeout = http_timeout
@@ -27,6 +28,7 @@ module Pinot
       @use_multistage_engine = use_multistage_engine
       @controller_config = controller_config
       @logger = logger
+      @tls_config = tls_config
     end
   end
 end

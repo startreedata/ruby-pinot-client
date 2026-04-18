@@ -12,7 +12,7 @@ module Pinot
   end
 
   def self.from_config(config, http_client: nil)
-    inner = http_client || HttpClient.new(timeout: config.http_timeout)
+    inner = http_client || HttpClient.new(timeout: config.http_timeout, tls_config: config.tls_config)
 
     transport = JsonHttpTransport.new(
       http_client: inner,

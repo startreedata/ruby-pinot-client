@@ -2,17 +2,19 @@ require "net/http"
 require "uri"
 require "json"
 require "securerandom"
+require "openssl"
 
 module Pinot
   class HttpClient
-    def initialize(timeout: nil)
+    def initialize(timeout: nil, tls_config: nil)
       @timeout = timeout
+      @tls_config = tls_config
     end
 
     def post(url, body:, headers: {})
       uri = URI.parse(url)
       http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = uri.scheme == "https"
+      configure_ssl(http, uri)
       if @timeout
         http.open_timeout = @timeout
         http.read_timeout = @timeout
@@ -27,7 +29,7 @@ module Pinot
     def get(url, headers: {})
       uri = URI.parse(url)
       http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = uri.scheme == "https"
+      configure_ssl(http, uri)
       if @timeout
         http.open_timeout = @timeout
         http.read_timeout = @timeout
@@ -36,6 +38,32 @@ module Pinot
       req = Net::HTTP::Get.new(uri.request_uri)
       headers.each { |k, v| req[k] = v }
       http.request(req)
+    end
+
+    private
+
+    def configure_ssl(http, uri)
+      if uri.scheme == "https"
+        http.use_ssl = true
+        if @tls_config
+          if @tls_config.ca_cert_file
+            store = OpenSSL::X509::Store.new
+            store.add_file(@tls_config.ca_cert_file)
+            http.cert_store = store
+          end
+          if @tls_config.client_cert_file && @tls_config.client_key_file
+            http.cert = OpenSSL::X509::Certificate.new(File.read(@tls_config.client_cert_file))
+            http.key = OpenSSL::PKey.read(File.read(@tls_config.client_key_file))
+          end
+          if @tls_config.insecure_skip_verify
+            http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+          else
+            http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+          end
+        end
+      else
+        http.use_ssl = false
+      end
     end
   end
 
