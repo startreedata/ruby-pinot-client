@@ -106,6 +106,16 @@ client.use_multistage_engine = true
 resp = client.execute_sql("baseballStats", "SELECT teamID, count(*) FROM baseballStats GROUP BY teamID")
 ```
 
+Or enable it upfront via `ClientConfig`:
+
+```ruby
+config = Pinot::ClientConfig.new(
+  broker_list:           ["localhost:8000"],
+  use_multistage_engine: true
+)
+client = Pinot.from_config(config)
+```
+
 ### Trace
 
 ```ruby
