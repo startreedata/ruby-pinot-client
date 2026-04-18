@@ -161,6 +161,16 @@ jobs:
           chmod 0600 ~/.gem/credentials
           gem push pinot-client-${{ steps.version.outputs.version }}.gem
 
+      - name: Publish to GitHub Packages
+        run: |
+          cat >> ~/.gem/credentials << EOF
+          :github: Bearer ${{ secrets.GITHUB_TOKEN }}
+          EOF
+          chmod 0600 ~/.gem/credentials
+          gem push --key github \
+            --host https://rubygems.pkg.github.com/startreedata \
+            pinot-client-${{ steps.version.outputs.version }}.gem
+
       - name: Update major version tag
         if: ${{ !contains(steps.version.outputs.tag, '-') }}
         run: |
