@@ -1,0 +1,159 @@
+name: Auto Release Minor
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - ".github/workflows/**"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  auto-release:
+    runs-on: ubuntu-latest
+    name: Bump Minor Version and Release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next minor version
+        id: next
+        run: |
+          LATEST=$(git tag -l "v*" --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+          if [ -z "$LATEST" ]; then
+            NEXT="v1.0.0"
+          else
+            MAJOR=$(echo "$LATEST" | cut -d. -f1 | tr -d v)
+            MINOR=$(echo "$LATEST" | cut -d. -f2)
+            NEXT="v${MAJOR}.$((MINOR + 1)).0"
+          fi
+          echo "latest=$LATEST"
+          echo "next=$NEXT"
+          echo "next=$NEXT" >> $GITHUB_OUTPUT
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create and push tag
+        run: |
+          TAG="${{ steps.next.outputs.next }}"
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "Tag $TAG created and pushed"
+
+      - name: Extract version
+        id: version
+        run: |
+          TAG="${{ steps.next.outputs.next }}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG"         >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "major=$(echo $VERSION | cut -d. -f1)" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        run: |
+          TAG="${{ steps.next.outputs.next }}"
+          PREVIOUS_TAG=$(git tag -l "v*" --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "^$TAG$" | head -n 1)
+          if [ -z "$PREVIOUS_TAG" ]; then
+            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+            RANGE_LABEL="initial release"
+          else
+            RANGE_LABEL="$PREVIOUS_TAG...$TAG"
+          fi
+
+          CHANGELOG=$(git log --oneline --pretty=format:"- %s" ${PREVIOUS_TAG}..HEAD)
+
+          cat > changelog.md << EOF
+          ## What's Changed
+
+          $CHANGELOG
+
+          ## Installation
+
+          Add to your \`Gemfile\`:
+
+          \`\`\`ruby
+          gem "pinot-client", "~> ${{ steps.version.outputs.version }}"
+          \`\`\`
+
+          Or install directly:
+
+          \`\`\`bash
+          gem install pinot-client -v ${{ steps.version.outputs.version }}
+          \`\`\`
+
+          Published on RubyGems.org: https://rubygems.org/gems/pinot-client
+
+          ## Quick start
+
+          \`\`\`ruby
+          require "pinot"
+
+          client = Pinot.from_broker_list(["localhost:8000"])
+          resp   = client.execute_sql("myTable", "SELECT * FROM myTable LIMIT 10")
+          puts resp.result_table.get_string(0, 0)
+          \`\`\`
+
+          **Full changelog**: https://github.com/startreedata/ruby-pinot-client/compare/${RANGE_LABEL}
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.tag }}
+          body_path: changelog.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
+      - name: Bump version.rb to match tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i "s/VERSION = .*/VERSION = \"$VERSION\"/" lib/pinot/version.rb
+          echo "Version set to $VERSION"
+
+      - name: Build gem
+        run: gem build pinot.gemspec
+
+      - name: Publish to RubyGems.org
+        run: |
+          mkdir -p ~/.gem
+          cat > ~/.gem/credentials << EOF
+          ---
+          :rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}
+          EOF
+          chmod 0600 ~/.gem/credentials
+          gem push pinot-client-${{ steps.version.outputs.version }}.gem
+
+      - name: Publish to GitHub Packages
+        run: |
+          cat >> ~/.gem/credentials << EOF
+          :github: Bearer ${{ secrets.GITHUB_TOKEN }}
+          EOF
+          chmod 0600 ~/.gem/credentials
+          gem push --key github \
+            --host https://rubygems.pkg.github.com/startreedata \
+            pinot-client-${{ steps.version.outputs.version }}.gem
+
+      - name: Update major version tag
+        run: |
+          MAJOR_TAG="v${{ steps.version.outputs.major }}"
+          git tag -f "$MAJOR_TAG"
+          git push origin "$MAJOR_TAG" --force
+          echo "Major version tag $MAJOR_TAG updated"
