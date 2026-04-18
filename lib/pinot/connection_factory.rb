@@ -16,7 +16,8 @@ module Pinot
 
     transport = JsonHttpTransport.new(
       http_client: inner,
-      extra_headers: config.extra_http_header || {}
+      extra_headers: config.extra_http_header || {},
+      logger: config.logger
     )
 
     selector = build_selector(config, inner)
@@ -25,7 +26,8 @@ module Pinot
     conn = Connection.new(
       transport: transport,
       broker_selector: selector,
-      use_multistage_engine: config.use_multistage_engine || false
+      use_multistage_engine: config.use_multistage_engine || false,
+      logger: config.logger
     )
 
     selector.init
@@ -36,7 +38,7 @@ module Pinot
     if config.broker_list && !config.broker_list.empty?
       SimpleBrokerSelector.new(config.broker_list)
     elsif config.controller_config
-      ControllerBasedBrokerSelector.new(config.controller_config, http_client)
+      ControllerBasedBrokerSelector.new(config.controller_config, http_client, logger: config.logger)
     end
   end
   private_class_method :build_selector

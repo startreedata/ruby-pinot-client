@@ -2,11 +2,12 @@ require "bigdecimal"
 
 module Pinot
   class Connection
-    def initialize(transport:, broker_selector:, use_multistage_engine: false)
+    def initialize(transport:, broker_selector:, use_multistage_engine: false, logger: nil)
       @transport = transport
       @broker_selector = broker_selector
       @use_multistage_engine = use_multistage_engine
       @trace = false
+      @logger = logger
     end
 
     def use_multistage_engine=(val)
@@ -22,6 +23,7 @@ module Pinot
     end
 
     def execute_sql(table, query)
+      logger.debug "Executing SQL on table=#{table}: #{query}"
       broker = @broker_selector.select_broker(table)
       @transport.execute(broker, build_request(query))
     rescue => e
@@ -86,6 +88,10 @@ module Pinot
     end
 
     private
+
+    def logger
+      @logger || Pinot::Logging.logger
+    end
 
     def build_request(query)
       Request.new("sql", query, @trace, @use_multistage_engine)

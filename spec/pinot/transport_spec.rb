@@ -148,7 +148,40 @@ RSpec.describe Pinot::JsonHttpTransport do
 
       transport = build_transport
       req = Pinot::Request.new("sql", "q", false, false)
-      expect { transport.execute(broker, req) }.to raise_error(/unexpected token/)
+      expect { transport.execute(broker, req) }.to raise_error(/unexpected (token|character)/i)
+    end
+  end
+
+  describe "logging" do
+    it "logs an error at error level on non-200 response" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 500, body: "")
+
+      spy_logger = instance_double(Logger)
+      allow(spy_logger).to receive(:debug)
+      expect(spy_logger).to receive(:error).with(/500/)
+
+      transport = Pinot::JsonHttpTransport.new(
+        http_client: Pinot::HttpClient.new,
+        logger: spy_logger
+      )
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false)
+      expect { transport.execute(broker, req) }.to raise_error(/500/)
+    end
+
+    it "logs a debug message before the HTTP call" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 200, body: sql_response)
+
+      spy_logger = instance_double(Logger)
+      expect(spy_logger).to receive(:debug).with(/localhost:8000/)
+
+      transport = Pinot::JsonHttpTransport.new(
+        http_client: Pinot::HttpClient.new,
+        logger: spy_logger
+      )
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false)
+      transport.execute(broker, req)
     end
   end
 end

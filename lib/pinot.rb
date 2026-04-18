@@ -6,6 +6,7 @@ require "securerandom"
 
 require_relative "pinot/errors"
 require_relative "pinot/version"
+require_relative "pinot/logger"
 require_relative "pinot/config"
 require_relative "pinot/request"
 require_relative "pinot/response"
