@@ -67,7 +67,7 @@ RSpec.describe "Pinot factory methods" do
 
     it "passes http_timeout to HttpClient as timeout:" do
       fake_client = instance_double(Pinot::HttpClient)
-      expect(Pinot::HttpClient).to receive(:new).with(timeout: 15).and_return(fake_client)
+      expect(Pinot::HttpClient).to receive(:new).with(timeout: 15, tls_config: nil).and_return(fake_client)
 
       config = Pinot::ClientConfig.new(
         broker_list: ["localhost:8000"],
