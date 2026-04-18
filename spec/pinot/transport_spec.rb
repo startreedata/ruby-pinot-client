@@ -152,3 +152,48 @@ RSpec.describe Pinot::JsonHttpTransport do
     end
   end
 end
+
+RSpec.describe Pinot::HttpClient do
+  describe "timeout configuration" do
+    it "sets open_timeout, read_timeout, and write_timeout when timeout is provided" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 200, body: "{}")
+
+      http_double = instance_double(Net::HTTP)
+      allow(Net::HTTP).to receive(:new).and_return(http_double)
+      allow(http_double).to receive(:use_ssl=)
+      allow(http_double).to receive(:open_timeout=)
+      allow(http_double).to receive(:read_timeout=)
+      allow(http_double).to receive(:write_timeout=)
+      allow(http_double).to receive(:request).and_return(
+        instance_double(Net::HTTPResponse, code: "200", body: "{}")
+      )
+
+      client = Pinot::HttpClient.new(timeout: 5)
+      client.post("http://localhost:8000/query/sql", body: "{}")
+
+      expect(http_double).to have_received(:open_timeout=).with(5)
+      expect(http_double).to have_received(:read_timeout=).with(5)
+      expect(http_double).to have_received(:write_timeout=).with(5)
+    end
+
+    it "does not set any timeout when timeout is nil" do
+      http_double = instance_double(Net::HTTP)
+      allow(Net::HTTP).to receive(:new).and_return(http_double)
+      allow(http_double).to receive(:use_ssl=)
+      allow(http_double).to receive(:open_timeout=)
+      allow(http_double).to receive(:read_timeout=)
+      allow(http_double).to receive(:write_timeout=)
+      allow(http_double).to receive(:request).and_return(
+        instance_double(Net::HTTPResponse, code: "200", body: "{}")
+      )
+
+      client = Pinot::HttpClient.new
+      client.post("http://localhost:8000/query/sql", body: "{}")
+
+      expect(http_double).not_to have_received(:open_timeout=)
+      expect(http_double).not_to have_received(:read_timeout=)
+      expect(http_double).not_to have_received(:write_timeout=)
+    end
+  end
+end

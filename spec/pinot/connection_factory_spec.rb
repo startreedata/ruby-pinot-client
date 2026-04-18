@@ -64,5 +64,16 @@ RSpec.describe "Pinot factory methods" do
       conn = Pinot.from_config(config)
       conn.execute_sql("", "select count(*) from t")
     end
+
+    it "passes http_timeout to HttpClient as timeout:" do
+      fake_client = instance_double(Pinot::HttpClient)
+      expect(Pinot::HttpClient).to receive(:new).with(timeout: 15).and_return(fake_client)
+
+      config = Pinot::ClientConfig.new(
+        broker_list: ["localhost:8000"],
+        http_timeout: 15
+      )
+      Pinot.from_config(config)
+    end
   end
 end

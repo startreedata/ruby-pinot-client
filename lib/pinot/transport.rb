@@ -16,6 +16,7 @@ module Pinot
       if @timeout
         http.open_timeout = @timeout
         http.read_timeout = @timeout
+        http.write_timeout = @timeout
       end
       req = Net::HTTP::Post.new(uri.request_uri)
       headers.each { |k, v| req[k] = v }
@@ -30,6 +31,7 @@ module Pinot
       if @timeout
         http.open_timeout = @timeout
         http.read_timeout = @timeout
+        http.write_timeout = @timeout
       end
       req = Net::HTTP::Get.new(uri.request_uri)
       headers.each { |k, v| req[k] = v }
