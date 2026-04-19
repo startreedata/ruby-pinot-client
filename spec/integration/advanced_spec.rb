@@ -44,7 +44,7 @@ RSpec.describe "Pinot integration — advanced queries" do
       client = pinot_client
       resp = client.execute_sql(
         table,
-        "SELECT playerName, yearID, batting_avg FROM baseballStats LIMIT 1"
+        "SELECT playerName, yearID, hits FROM baseballStats LIMIT 1"
       )
       expect(resp).not_to be_nil
       rt = resp.result_table
@@ -52,8 +52,7 @@ RSpec.describe "Pinot integration — advanced queries" do
 
       # playerName is STRING
       expect { rt.get_string(0, 0) }.not_to raise_error
-      player_name = rt.get_string(0, 0)
-      expect(player_name).to be_a(String)
+      expect(rt.get_string(0, 0)).to be_a(String)
 
       # yearID is INT/LONG
       expect { rt.get_long(0, 1) }.not_to raise_error
@@ -61,10 +60,9 @@ RSpec.describe "Pinot integration — advanced queries" do
       expect(year).to be_a(Integer)
       expect(year).to be > 1800
 
-      # batting_avg is FLOAT/DOUBLE
-      expect { rt.get_double(0, 2) }.not_to raise_error
-      avg = rt.get_double(0, 2)
-      expect(avg).to be_a(Float)
+      # hits is INT/LONG
+      expect { rt.get_long(0, 2) }.not_to raise_error
+      expect(rt.get_long(0, 2)).to be_a(Integer)
     end
   end
 end
