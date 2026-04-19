@@ -23,8 +23,10 @@ module Pinot
     attr_accessor :broker_list, :http_timeout, :query_timeout_ms, :extra_http_header,
                   :use_multistage_engine, :controller_config, :logger, :tls_config,
                   :grpc_config, :zookeeper_config,
-                  :max_retries,      # Integer, default 0 (no retry)
-                  :retry_interval_ms # Integer ms base interval, default 200
+                  :max_retries,        # Integer, default 0 (no retry)
+                  :retry_interval_ms,  # Integer ms base interval, default 200
+                  :pool_size,          # max idle connections per broker, default 5
+                  :keep_alive_timeout  # seconds before idle connection is reaped, default 30
 
     def initialize(
       broker_list: [],
@@ -38,7 +40,9 @@ module Pinot
       grpc_config: nil,
       zookeeper_config: nil,
       max_retries: 0,
-      retry_interval_ms: 200
+      retry_interval_ms: 200,
+      pool_size: nil,
+      keep_alive_timeout: nil
     )
       @broker_list = broker_list
       @http_timeout = http_timeout
@@ -50,9 +54,10 @@ module Pinot
       @tls_config = tls_config
       @grpc_config = grpc_config
       @zookeeper_config = zookeeper_config
-      @query_timeout_ms = query_timeout_ms
       @max_retries = max_retries
       @retry_interval_ms = retry_interval_ms
+      @pool_size = pool_size
+      @keep_alive_timeout = keep_alive_timeout
     end
 
     def validate!
@@ -73,6 +78,14 @@ module Pinot
 
       if !query_timeout_ms.nil? && query_timeout_ms <= 0
         raise ConfigurationError, "query_timeout_ms must be positive, got: #{query_timeout_ms}"
+      end
+
+      if !pool_size.nil? && pool_size < 1
+        raise ConfigurationError, "pool_size must be at least 1, got: #{pool_size}"
+      end
+
+      if !keep_alive_timeout.nil? && keep_alive_timeout <= 0
+        raise ConfigurationError, "keep_alive_timeout must be positive, got: #{keep_alive_timeout}"
       end
 
       self

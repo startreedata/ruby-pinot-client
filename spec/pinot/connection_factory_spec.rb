@@ -47,6 +47,16 @@ RSpec.describe "Pinot factory methods" do
       )
     end
 
+    it "raises ConfigurationError when pool_size is less than 1" do
+      config = Pinot::ClientConfig.new(broker_list: ["localhost:8000"], pool_size: 0)
+      expect { config.validate! }.to raise_error(Pinot::ConfigurationError, /pool_size/)
+    end
+
+    it "raises ConfigurationError when keep_alive_timeout is non-positive" do
+      config = Pinot::ClientConfig.new(broker_list: ["localhost:8000"], keep_alive_timeout: -1)
+      expect { config.validate! }.to raise_error(Pinot::ConfigurationError, /keep_alive_timeout/)
+    end
+
     it "passes extra_http_header to transport" do
       stub_request(:post, "http://localhost:8000/query/sql")
         .with(headers: { "X-Auth" => "token123" })
@@ -75,11 +85,27 @@ RSpec.describe "Pinot factory methods" do
 
     it "passes http_timeout to HttpClient as timeout:" do
       fake_client = instance_double(Pinot::HttpClient)
-      expect(Pinot::HttpClient).to receive(:new).with(timeout: 15, tls_config: nil).and_return(fake_client)
+      expect(Pinot::HttpClient).to receive(:new)
+        .with(timeout: 15, tls_config: nil, pool_size: nil, keep_alive_timeout: nil)
+        .and_return(fake_client)
 
       config = Pinot::ClientConfig.new(
         broker_list: ["localhost:8000"],
         http_timeout: 15
+      )
+      Pinot.from_config(config)
+    end
+
+    it "passes pool_size and keep_alive_timeout to HttpClient" do
+      fake_client = instance_double(Pinot::HttpClient)
+      expect(Pinot::HttpClient).to receive(:new)
+        .with(timeout: nil, tls_config: nil, pool_size: 10, keep_alive_timeout: 60)
+        .and_return(fake_client)
+
+      config = Pinot::ClientConfig.new(
+        broker_list: ["localhost:8000"],
+        pool_size: 10,
+        keep_alive_timeout: 60
       )
       Pinot.from_config(config)
     end

@@ -34,7 +34,7 @@ module Pinot
       selector = ZookeeperBrokerSelector.new(zk_path: config.zookeeper_config.zk_path)
       selector.init
 
-      inner = http_client || HttpClient.new(timeout: config.http_timeout, tls_config: config.tls_config)
+      inner = http_client || build_http_client(config)
       transport = JsonHttpTransport.new(
         http_client: inner,
         extra_headers: config.extra_http_header || {},
@@ -53,7 +53,7 @@ module Pinot
       )
     end
 
-    inner = http_client || HttpClient.new(timeout: config.http_timeout, tls_config: config.tls_config)
+    inner = http_client || build_http_client(config)
 
     transport = JsonHttpTransport.new(
       http_client: inner,
@@ -77,6 +77,16 @@ module Pinot
     selector.init
     conn
   end
+
+  def self.build_http_client(config)
+    HttpClient.new(
+      timeout: config.http_timeout,
+      tls_config: config.tls_config,
+      pool_size: config.pool_size,
+      keep_alive_timeout: config.keep_alive_timeout
+    )
+  end
+  private_class_method :build_http_client
 
   def self.build_selector(config, http_client)
     if config.broker_list && !config.broker_list.empty?

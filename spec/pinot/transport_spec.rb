@@ -260,7 +260,17 @@ RSpec.describe Pinot::JsonHttpTransport do
       expect(resp.result_table.get_long(0, 0)).to eq(97889)
     end
 
-    it "retries on HTTP 503 response" do
+    it "retries on HTTP 503 response and raises BrokerUnavailableError when exhausted" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 503, body: "")
+
+      transport = build_retry_transport(max_retries: 1, retry_interval_ms: 0)
+      allow(transport).to receive(:sleep)
+
+      expect { transport.execute(broker, req) }.to raise_error(Pinot::BrokerUnavailableError)
+    end
+
+    it "retries on HTTP 503 and succeeds on retry" do
       stub_request(:post, "http://localhost:8000/query/sql")
         .to_return(status: 503, body: "").then
         .to_return(status: 200, body: sql_response)
@@ -270,6 +280,34 @@ RSpec.describe Pinot::JsonHttpTransport do
 
       resp = transport.execute(broker, req)
       expect(resp).to be_a(Pinot::BrokerResponse)
+    end
+
+    it "raises RateLimitError on HTTP 429" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 429, body: "Too Many Requests")
+
+      transport = build_retry_transport(max_retries: 0)
+      expect { transport.execute(broker, req) }.to raise_error(Pinot::RateLimitError, /429/)
+    end
+
+    it "retries on HTTP 429 and succeeds on retry" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 429, body: "").then
+        .to_return(status: 200, body: sql_response)
+
+      transport = build_retry_transport(max_retries: 1, retry_interval_ms: 0)
+      allow(transport).to receive(:sleep)
+
+      resp = transport.execute(broker, req)
+      expect(resp).to be_a(Pinot::BrokerResponse)
+    end
+
+    it "raises BrokerUnavailableError on HTTP 504" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 504, body: "Gateway Timeout")
+
+      transport = build_retry_transport(max_retries: 0)
+      expect { transport.execute(broker, req) }.to raise_error(Pinot::BrokerUnavailableError, /504/)
     end
 
     it "uses exponential backoff (sleeps double each attempt)" do
@@ -345,20 +383,54 @@ RSpec.describe Pinot::HttpClient do
     end
   end
 
+  describe "configurable pool_size" do
+    it "respects a custom pool_size" do
+      client = Pinot::HttpClient.new(pool_size: 2)
+      key = "localhost:8000"
+
+      connections = Array.new(3) { double("Net::HTTP", finish: nil) }
+      connections.each { |http| client.send(:checkin, key, http) }
+
+      pool_size = client.instance_variable_get(:@pool).values.map(&:size).sum
+      expect(pool_size).to eq(2)
+      expect(connections.last).to have_received(:finish)
+    end
+
+    it "respects a custom keep_alive_timeout" do
+      client = Pinot::HttpClient.new(keep_alive_timeout: 5)
+      key = "localhost:8000"
+      base_time = 1_000_000.0
+
+      http = double("Net::HTTP", finish: nil)
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(base_time)
+      client.send(:checkin, key, http)
+
+      # 4 seconds later — still fresh (TTL is 5s)
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(base_time + 4)
+      client.send(:reap_stale_connections)
+      expect(http).not_to have_received(:finish)
+
+      # 6 seconds later — now stale
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(base_time + 6)
+      client.send(:reap_stale_connections)
+      expect(http).to have_received(:finish)
+    end
+  end
+
   describe "pool cap" do
-    it "caps the pool at MAX_POOL_SIZE connections" do
+    it "caps the pool at DEFAULT_POOL_SIZE connections by default" do
       client = Pinot::HttpClient.new
       key = "localhost:8000"
       uri = URI.parse(url)
 
-      # Checkin MAX_POOL_SIZE + 1 connections — the last one should be finished, not pooled
-      n = Pinot::HttpClient::MAX_POOL_SIZE + 1
+      # Checkin DEFAULT_POOL_SIZE + 1 connections — the last one should be finished, not pooled
+      n = Pinot::HttpClient::DEFAULT_POOL_SIZE + 1
       connections = Array.new(n) { double("Net::HTTP", finish: nil) }
       connections.each { |http| client.send(:checkin, key, http) }
 
       # Pool stores PoolEntry objects; count entries across all keys
       pool_size = client.instance_variable_get(:@pool).values.map(&:size).sum
-      expect(pool_size).to eq(Pinot::HttpClient::MAX_POOL_SIZE)
+      expect(pool_size).to eq(Pinot::HttpClient::DEFAULT_POOL_SIZE)
 
       # The overflow connection should have been finished
       expect(connections.last).to have_received(:finish)
@@ -379,7 +451,7 @@ RSpec.describe Pinot::HttpClient do
       client.send(:checkin, key, stale_http)
 
       # Checkout after TTL has passed — stale entry should be closed, new connection opened
-      expired_time = base_time + Pinot::HttpClient::KEEP_ALIVE_TIMEOUT
+      expired_time = base_time + Pinot::HttpClient::DEFAULT_KEEP_ALIVE_TIMEOUT
       allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(expired_time)
       expect(Net::HTTP).to receive(:new).once.and_return(fresh_http)
 
@@ -412,7 +484,7 @@ RSpec.describe Pinot::HttpClient do
       client.send(:checkin, key, http2)
 
       # Advance time past TTL and trigger the reaper
-      expired_time = base_time + Pinot::HttpClient::KEEP_ALIVE_TIMEOUT
+      expired_time = base_time + Pinot::HttpClient::DEFAULT_KEEP_ALIVE_TIMEOUT
       allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(expired_time)
       client.send(:reap_stale_connections)
 
