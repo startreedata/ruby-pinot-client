@@ -22,7 +22,7 @@ module Pinot
   class ClientConfig
     attr_accessor :broker_list, :http_timeout, :query_timeout_ms, :extra_http_header,
                   :use_multistage_engine, :controller_config, :logger, :tls_config,
-                  :grpc_config, :zookeeper_config
+                  :grpc_config, :zookeeper_config, :query_timeout_ms
 
     def initialize(
       broker_list: [],
@@ -34,7 +34,8 @@ module Pinot
       logger: nil,
       tls_config: nil,
       grpc_config: nil,
-      zookeeper_config: nil
+      zookeeper_config: nil,
+      query_timeout_ms: nil
     )
       @broker_list = broker_list
       @http_timeout = http_timeout
@@ -46,6 +47,7 @@ module Pinot
       @tls_config = tls_config
       @grpc_config = grpc_config
       @zookeeper_config = zookeeper_config
+      @query_timeout_ms = query_timeout_ms
     end
 
     def validate!

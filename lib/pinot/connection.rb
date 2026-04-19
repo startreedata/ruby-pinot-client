@@ -2,12 +2,15 @@ require "bigdecimal"
 
 module Pinot
   class Connection
-    def initialize(transport:, broker_selector:, use_multistage_engine: false, logger: nil)
+    attr_accessor :query_timeout_ms
+
+    def initialize(transport:, broker_selector:, use_multistage_engine: false, logger: nil, query_timeout_ms: nil)
       @transport = transport
       @broker_selector = broker_selector
       @use_multistage_engine = use_multistage_engine
       @trace = false
       @logger = logger
+      @query_timeout_ms = query_timeout_ms
     end
 
     def use_multistage_engine=(val)
@@ -28,6 +31,14 @@ module Pinot
         broker = @broker_selector.select_broker(table)
         @transport.execute(broker, build_request(query))
       end
+    rescue => e
+      raise "unable to execute SQL on table #{table}: #{e.message}"
+    end
+
+    def execute_sql_with_timeout(table, query, timeout_ms)
+      logger.debug "Executing SQL with timeout=#{timeout_ms}ms on table=#{table}: #{query}"
+      broker = @broker_selector.select_broker(table)
+      @transport.execute(broker, build_request(query, timeout_ms: timeout_ms))
     rescue => e
       raise "unable to execute SQL on table #{table}: #{e.message}"
     end
@@ -95,8 +106,8 @@ module Pinot
       @logger || Pinot::Logging.logger
     end
 
-    def build_request(query)
-      Request.new("sql", query, @trace, @use_multistage_engine)
+    def build_request(query, timeout_ms: @query_timeout_ms)
+      Request.new("sql", query, @trace, @use_multistage_engine, timeout_ms)
     end
   end
 end

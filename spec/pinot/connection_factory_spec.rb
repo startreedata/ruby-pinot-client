@@ -106,6 +106,15 @@ RSpec.describe "Pinot factory methods" do
       expect(selector).to be_a(Pinot::ZookeeperBrokerSelector)
     end
 
+    it "passes query_timeout_ms through to Connection" do
+      config = Pinot::ClientConfig.new(
+        broker_list: ["localhost:8000"],
+        query_timeout_ms: 3000
+      )
+      conn = Pinot.from_config(config)
+      expect(conn.query_timeout_ms).to eq 3000
+    end
+
     it "uses GrpcTransport and SimpleBrokerSelector when grpc_config is set", skip: !defined?(Pinot::GrpcTransport) do
       grpc_cfg = Pinot::GrpcConfig.new(broker_list: ["grpc-host:8090"])
       config = Pinot::ClientConfig.new(grpc_config: grpc_cfg)

@@ -170,6 +170,7 @@ module Pinot
         if @timeout_ms && @timeout_ms > 0
           parts << "timeoutMs=#{@timeout_ms}"
         end
+        parts << "timeoutMs=#{request.query_timeout_ms}" if request.query_timeout_ms
       end
       parts.join(";")
     end
