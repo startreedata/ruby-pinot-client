@@ -67,7 +67,7 @@ client = Pinot.from_controller("localhost:9000")
 ```ruby
 config = Pinot::ClientConfig.new(
   broker_list:           ["localhost:8000"],
-  http_timeout:          10,          # seconds
+  http_timeout:          10,          # seconds — sets open_timeout, read_timeout, and write_timeout on the underlying Net::HTTP connection
   extra_http_header:     { "Authorization" => "Bearer <token>" },
   use_multistage_engine: false,
   controller_config: Pinot::ControllerConfig.new(
@@ -75,6 +75,38 @@ config = Pinot::ClientConfig.new(
     update_freq_ms:                1000,
     extra_controller_api_headers:  { "Authorization" => "Bearer <token>" }
   )
+)
+client = Pinot.from_config(config)
+```
+
+### With TLS
+
+```ruby
+tls = Pinot::TlsConfig.new(
+  ca_cert_file:        "/path/to/ca.pem",
+  client_cert_file:    "/path/to/client.crt",
+  client_key_file:     "/path/to/client.key",
+  insecure_skip_verify: false   # set true to skip cert verification
+)
+config = Pinot::ClientConfig.new(
+  broker_list: ["https://pinot-broker.example.com:8000"],
+  tls_config:  tls
+)
+client = Pinot.from_config(config)
+```
+
+## Logging
+
+By default the client logs warnings to stdout. Configure a custom logger globally or per-client:
+
+```ruby
+# Global logger
+Pinot::Logging.logger = Logger.new("pinot.log", level: Logger::DEBUG)
+
+# Per-client logger via ClientConfig
+config = Pinot::ClientConfig.new(
+  broker_list: ["localhost:8000"],
+  logger: Logger.new($stdout, level: Logger::INFO)
 )
 client = Pinot.from_config(config)
 ```
@@ -122,6 +154,32 @@ client = Pinot.from_config(config)
 client.open_trace
 resp = client.execute_sql("baseballStats", "SELECT count(*) FROM baseballStats")
 client.close_trace
+```
+
+## Error Handling
+
+All errors raised by the client inherit from `Pinot::Error < StandardError`:
+
+| Class | Raised when |
+|-------|-------------|
+| `Pinot::BrokerNotFoundError` | No broker available (empty list or all offline) |
+| `Pinot::TableNotFoundError` | Named table not found in broker map |
+| `Pinot::TransportError` | Non-200 HTTP response from broker |
+| `Pinot::PreparedStatementClosedError` | Operation on a closed prepared statement |
+| `Pinot::ConfigurationError` | Invalid config (bad URL scheme, missing broker source) |
+
+Example:
+
+```ruby
+begin
+  resp = client.execute_sql("myTable", "SELECT * FROM myTable")
+rescue Pinot::TableNotFoundError => e
+  puts "Table missing: #{e.message}"
+rescue Pinot::TransportError => e
+  puts "Broker error: #{e.message}"
+rescue Pinot::Error => e
+  puts "Pinot error: #{e.message}"
+end
 ```
 
 ## Reading Results
