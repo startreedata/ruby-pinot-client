@@ -50,6 +50,35 @@ module Pinot
       raise e
     end
 
+    def execute_many(queries, max_concurrency: nil)
+      return [] if queries.empty?
+
+      results  = Array.new(queries.size)
+      # Queue acts as a counting semaphore: pre-filled with N tokens.
+      sem = max_concurrency ? build_semaphore(max_concurrency) : nil
+
+      threads = queries.each_with_index.map do |item, idx|
+        table      = item[:table]           || item["table"]           || ""
+        query      = item[:query]           || item["query"]           || ""
+        timeout_ms = item[:query_timeout_ms] || item["query_timeout_ms"]
+
+        Thread.new do
+          sem&.pop   # acquire
+          begin
+            resp = execute_sql(table, query, query_timeout_ms: timeout_ms)
+            results[idx] = QueryResult.new(table: table, query: query, response: resp, error: nil)
+          rescue => e
+            results[idx] = QueryResult.new(table: table, query: query, response: nil, error: e)
+          ensure
+            sem&.push(:token)  # release
+          end
+        end
+      end
+
+      threads.each(&:join)
+      results
+    end
+
     def prepare(table, query_template)
       raise ArgumentError, "table name cannot be empty" if table.nil? || table.strip.empty?
       raise ArgumentError, "query template cannot be empty" if query_template.nil? || query_template.strip.empty?
@@ -100,6 +129,12 @@ module Pinot
     end
 
     private
+
+    def build_semaphore(n)
+      q = SizedQueue.new(n)
+      n.times { q.push(:token) }
+      q
+    end
 
     def run_with_circuit_breaker(broker, &block)
       return yield unless @circuit_breaker_registry
