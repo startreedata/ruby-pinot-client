@@ -13,6 +13,7 @@ Gem::Specification.new do |spec|
   spec.metadata = {
     "homepage_uri"    => spec.homepage,
     "source_code_uri" => spec.homepage,
+    "changelog_uri"   => "https://github.com/startreedata/ruby-pinot-client/blob/main/CHANGELOG.md",
     "bug_tracker_uri" => "#{spec.homepage}/issues",
     "github_repo"     => "ssh://git@github.com/startreedata/ruby-pinot-client"
   }
