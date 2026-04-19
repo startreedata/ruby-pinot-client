@@ -237,8 +237,15 @@ jobs:
       - name: Bump version.rb to match tag
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          sed -i "s/VERSION = .*/VERSION = \"$VERSION\"/" lib/pinot/version.rb
-          echo "Version set to $VERSION"
+          bin/bump-version "$VERSION"
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add lib/pinot/version.rb
+          git commit -m "Bump version to ${{ steps.version.outputs.version }}" || echo "No version change to commit"
+          git push origin HEAD:${{ github.event.inputs.ref }}
 
       - name: Build gem
         run: gem build pinot.gemspec
