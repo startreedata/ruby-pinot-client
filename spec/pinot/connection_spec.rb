@@ -23,6 +23,7 @@ RSpec.describe Pinot::Connection do
   end
 
   describe "#execute_sql instrumentation" do
+    let(:conn) { build_connection }
     before { Pinot::Instrumentation.on_query = nil }
     after  { Pinot::Instrumentation.on_query = nil }
 
@@ -42,6 +43,30 @@ RSpec.describe Pinot::Connection do
       expect(received[:success]).to be true
       expect(received[:error]).to be_nil
       expect(received[:duration_ms]).to be_a(Float)
+    end
+
+    it "triggers the instrumentation callback with success: false on error" do
+      received = nil
+      Pinot::Instrumentation.on_query = proc { |event| received = event }
+
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 500, body: "")
+
+      expect { conn.execute_sql("myTable", "select 1") }.to raise_error(RuntimeError)
+
+      expect(received).not_to be_nil
+      expect(received[:table]).to eq("myTable")
+      expect(received[:success]).to be false
+      expect(received[:error]).not_to be_nil
+      expect(received[:duration_ms]).to be_a(Float)
+    end
+
+    it "passes per-call query_timeout_ms to the request" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .with { |r| JSON.parse(r.body)["queryOptions"].to_s.include?("timeoutMs=9999") }
+        .to_return(status: 200, body: '{"resultTable":{"dataSchema":{"columnDataTypes":["LONG"],"columnNames":["cnt"]},"rows":[[1]]},"exceptions":[],"numServersQueried":1,"numServersResponded":1,"timeUsedMs":1}')
+
+      conn.execute_sql("myTable", "select 1", query_timeout_ms: 9999)
     end
   end
 
