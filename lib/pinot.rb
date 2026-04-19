@@ -5,6 +5,7 @@ require "bigdecimal"
 require "securerandom"
 
 require_relative "pinot/errors"
+require_relative "pinot/instrumentation"
 require_relative "pinot/version"
 require_relative "pinot/logger"
 require_relative "pinot/config"

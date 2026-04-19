@@ -21,6 +21,29 @@ RSpec.describe Pinot::Connection do
     conn
   end
 
+  describe "#execute_sql instrumentation" do
+    before { Pinot::Instrumentation.on_query = nil }
+    after  { Pinot::Instrumentation.on_query = nil }
+
+    it "triggers the instrumentation callback" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 200, body: sql_response)
+
+      received = nil
+      Pinot::Instrumentation.on_query = proc { |event| received = event }
+
+      conn = build_connection
+      conn.execute_sql("myTable", "select count(*) from myTable")
+
+      expect(received).not_to be_nil
+      expect(received[:table]).to eq("myTable")
+      expect(received[:query]).to eq("select count(*) from myTable")
+      expect(received[:success]).to be true
+      expect(received[:error]).to be_nil
+      expect(received[:duration_ms]).to be_a(Float)
+    end
+  end
+
   describe "#execute_sql" do
     it "returns BrokerResponse on success" do
       stub_request(:post, "http://localhost:8000/query/sql")

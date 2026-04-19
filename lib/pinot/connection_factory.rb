@@ -12,6 +12,8 @@ module Pinot
   end
 
   def self.from_config(config, http_client: nil)
+    config.validate!
+
     if config.grpc_config
       transport = GrpcTransport.new(config.grpc_config)
       selector  = SimpleBrokerSelector.new(config.grpc_config.broker_list)

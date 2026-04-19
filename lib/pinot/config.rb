@@ -20,13 +20,14 @@ module Pinot
   end
 
   class ClientConfig
-    attr_accessor :broker_list, :http_timeout, :extra_http_header,
+    attr_accessor :broker_list, :http_timeout, :query_timeout_ms, :extra_http_header,
                   :use_multistage_engine, :controller_config, :logger, :tls_config,
                   :grpc_config, :zookeeper_config
 
     def initialize(
       broker_list: [],
       http_timeout: nil,
+      query_timeout_ms: nil,
       extra_http_header: {},
       use_multistage_engine: false,
       controller_config: nil,
@@ -37,6 +38,7 @@ module Pinot
     )
       @broker_list = broker_list
       @http_timeout = http_timeout
+      @query_timeout_ms = query_timeout_ms
       @extra_http_header = extra_http_header
       @use_multistage_engine = use_multistage_engine
       @controller_config = controller_config
@@ -44,6 +46,29 @@ module Pinot
       @tls_config = tls_config
       @grpc_config = grpc_config
       @zookeeper_config = zookeeper_config
+    end
+
+    def validate!
+      sources = [
+        !broker_list.empty?,
+        !controller_config.nil?,
+        !zookeeper_config.nil?,
+        !grpc_config.nil?
+      ].count(true)
+
+      if sources == 0
+        raise ConfigurationError, "ClientConfig requires at least one of: broker_list, controller_config, zookeeper_config, or grpc_config"
+      end
+
+      if !http_timeout.nil? && http_timeout <= 0
+        raise ConfigurationError, "http_timeout must be positive, got: #{http_timeout}"
+      end
+
+      if !query_timeout_ms.nil? && query_timeout_ms <= 0
+        raise ConfigurationError, "query_timeout_ms must be positive, got: #{query_timeout_ms}"
+      end
+
+      self
     end
   end
 end

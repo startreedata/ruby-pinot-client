@@ -36,7 +36,15 @@ RSpec.describe "Pinot factory methods" do
   describe "Pinot.from_config" do
     it "raises when no broker source specified" do
       config = Pinot::ClientConfig.new
-      expect { Pinot.from_config(config) }.to raise_error(Pinot::ConfigurationError, /must specify broker_list or controller_config/)
+      expect { Pinot.from_config(config) }.to raise_error(Pinot::ConfigurationError)
+    end
+
+    it "raises ConfigurationError via validate! when no broker source specified" do
+      config = Pinot::ClientConfig.new
+      expect { Pinot.from_config(config) }.to raise_error(
+        Pinot::ConfigurationError,
+        /ClientConfig requires at least one of/
+      )
     end
 
     it "passes extra_http_header to transport" do
