@@ -37,7 +37,7 @@ jobs:
             ${{ runner.os }}-ruby-${{ matrix.ruby-version }}-gems-
 
       - name: Install gems
-        run: bundle install --path vendor/bundle
+        run: bundle config set --local path vendor/bundle && bundle install
 
       - name: Run unit tests
         run: bundle exec rspec spec/pinot/
@@ -65,7 +65,7 @@ jobs:
             ${{ runner.os }}-ruby-3.2-gems-
 
       - name: Install gems
-        run: bundle install --path vendor/bundle
+        run: bundle config set --local path vendor/bundle && bundle install
 
       - name: Start Apache Pinot via Docker
         run: |
@@ -234,7 +234,7 @@ jobs:
           bundler-cache: false
 
       - name: Install gems
-        run: bundle install --path vendor/bundle
+        run: bundle config set --local path vendor/bundle && bundle install
 
       - name: Bump version.rb to match tag
         run: |
