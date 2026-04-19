@@ -18,7 +18,7 @@ module Pinot
     def execute(broker_address, request)
       stub = build_stub(broker_address)
       grpc_request = build_request(request)
-      call_opts = build_call_opts
+      call_opts = build_call_opts(request)
 
       grpc_response = stub.submit(grpc_request, **call_opts)
       BrokerResponse.from_json(grpc_response.payload)
@@ -55,12 +55,19 @@ module Pinot
     def build_query_options(request)
       parts = ["groupByMode=sql", "responseFormat=sql"]
       parts << "useMultistageEngine=true" if request.use_multistage_engine
+      parts << "timeoutMs=#{request.query_timeout_ms}" if request.query_timeout_ms
       parts.join(";")
     end
 
-    def build_call_opts
+    def build_call_opts(request)
       opts = {}
-      opts[:deadline] = Time.now + @config.timeout if @config.timeout
+      # Per-request timeout takes precedence over config-level timeout
+      timeout_s = if request.query_timeout_ms
+                    request.query_timeout_ms / 1000.0
+                  elsif @config.timeout
+                    @config.timeout
+                  end
+      opts[:deadline] = Time.now + timeout_s if timeout_s
       opts[:metadata] = @config.extra_metadata unless @config.extra_metadata.empty?
       opts
     end

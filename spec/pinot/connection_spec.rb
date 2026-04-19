@@ -104,6 +104,13 @@ RSpec.describe Pinot::Connection do
       conn = build_connection
       expect { conn.execute_sql("", "select count(*) from t") }.to raise_error(/unexpected (token|character)/i)
     end
+
+    it "propagates TransportError without wrapping" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 503, body: "")
+      conn = build_connection
+      expect { conn.execute_sql("t", "select 1") }.to raise_error(Pinot::TransportError)
+    end
   end
 
   describe "trace control" do

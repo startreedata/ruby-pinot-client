@@ -61,7 +61,7 @@ rescue LoadError
       def execute(broker_address, request)
         stub = build_stub(broker_address)
         grpc_request = build_request(request)
-        call_opts = build_call_opts
+        call_opts = build_call_opts(request)
         grpc_response = stub.submit(grpc_request, **call_opts)
         BrokerResponse.from_json(grpc_response.payload)
       rescue GRPC::BadStatus => e
@@ -87,12 +87,18 @@ rescue LoadError
       def build_query_options(request)
         parts = ["groupByMode=sql", "responseFormat=sql"]
         parts << "useMultistageEngine=true" if request.use_multistage_engine
+        parts << "timeoutMs=#{request.query_timeout_ms}" if request.query_timeout_ms
         parts.join(";")
       end
 
-      def build_call_opts
+      def build_call_opts(request)
         opts = {}
-        opts[:deadline] = Time.now + @config.timeout if @config.timeout
+        timeout_s = if request.query_timeout_ms
+                      request.query_timeout_ms / 1000.0
+                    elsif @config.timeout
+                      @config.timeout
+                    end
+        opts[:deadline] = Time.now + timeout_s if timeout_s
         opts[:metadata] = @config.extra_metadata unless @config.extra_metadata.empty?
         opts
       end
@@ -269,6 +275,50 @@ RSpec.describe Pinot::GrpcTransport do
 
       expect(stub_double).to receive(:submit) do |_req, **opts|
         expect(opts).not_to have_key(:deadline)
+        grpc_response_double
+      end
+
+      transport.execute(broker_address, request)
+    end
+
+    it "per-request query_timeout_ms sets deadline and overrides config timeout" do
+      config = Pinot::GrpcConfig.new(broker_list: [broker_address], timeout: 30)
+      transport = described_class.new(config)
+      # 2000ms per-request => 2.0s deadline, NOT the 30s config timeout
+      request = Pinot::Request.new("sql", "select 1", false, false, 2000)
+
+      now = Time.now
+      allow(Time).to receive(:now).and_return(now)
+
+      expect(stub_double).to receive(:submit) do |_req, **opts|
+        expect(opts[:deadline]).to be_within(0.1).of(now + 2.0)
+        grpc_response_double
+      end
+
+      transport.execute(broker_address, request)
+    end
+
+    it "includes timeoutMs in queryOptions metadata when query_timeout_ms is set" do
+      request = Pinot::Request.new("sql", "select 1", false, false, 5000)
+
+      expect(stub_double).to receive(:submit) do |req, **_opts|
+        expect(req.metadata["queryOptions"]).to include("timeoutMs=5000")
+        grpc_response_double
+      end
+
+      transport.execute(broker_address, request)
+    end
+
+    it "uses config-level timeout when request.query_timeout_ms is nil" do
+      config = Pinot::GrpcConfig.new(broker_list: [broker_address], timeout: 10)
+      transport = described_class.new(config)
+      request = Pinot::Request.new("sql", "select 1", false, false, nil)
+
+      now = Time.now
+      allow(Time).to receive(:now).and_return(now)
+
+      expect(stub_double).to receive(:submit) do |_req, **opts|
+        expect(opts[:deadline]).to be_within(1).of(now + 10)
         grpc_response_double
       end
 
