@@ -76,6 +76,28 @@ RSpec.describe "Pinot factory methods" do
       Pinot.from_config(config)
     end
 
+    it "uses ZookeeperBrokerSelector when zookeeper_config is set" do
+      fake_zk = double("FakeZK")
+      allow(fake_zk).to receive(:get).and_return([
+        JSON.dump("mapFields" => { "myTable_OFFLINE" => { "Broker_host1_8000" => "ONLINE" } }),
+        nil
+      ])
+      allow(fake_zk).to receive(:register)
+      allow(fake_zk).to receive(:exists?).and_return(true)
+
+      zk_config = Pinot::ZookeeperConfig.new(zk_path: "localhost:2181")
+      config = Pinot::ClientConfig.new(zookeeper_config: zk_config)
+
+      allow(Pinot::ZookeeperBrokerSelector).to receive(:new).and_wrap_original do |orig, **kwargs|
+        orig.call(zk_client: fake_zk, **kwargs)
+      end
+
+      conn = Pinot.from_config(config)
+      expect(conn).to be_a(Pinot::Connection)
+      selector = conn.instance_variable_get(:@broker_selector)
+      expect(selector).to be_a(Pinot::ZookeeperBrokerSelector)
+    end
+
     it "uses GrpcTransport and SimpleBrokerSelector when grpc_config is set", skip: !defined?(Pinot::GrpcTransport) do
       grpc_cfg = Pinot::GrpcConfig.new(broker_list: ["grpc-host:8090"])
       config = Pinot::ClientConfig.new(grpc_config: grpc_cfg)

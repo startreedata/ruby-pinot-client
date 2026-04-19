@@ -27,3 +27,8 @@ begin
 rescue LoadError
   # grpc gem not available; GrpcTransport disabled
 end
+
+begin
+  require_relative "pinot/zookeeper_broker_selector"
+rescue LoadError
+end
