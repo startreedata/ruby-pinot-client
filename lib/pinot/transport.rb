@@ -9,11 +9,14 @@ module Pinot
     MAX_POOL_SIZE = 5
     KEEP_ALIVE_TIMEOUT = 30
 
+    PoolEntry = Struct.new(:http, :checked_in_at)
+
     def initialize(timeout: nil, tls_config: nil)
       @timeout = timeout
       @tls_config = tls_config
       @pool = {}
       @pool_mutex = Mutex.new
+      @reaper = start_reaper
     end
 
     def post(url, body:, headers: {})
@@ -52,16 +55,57 @@ module Pinot
     end
 
     def checkout(key, uri)
-      @pool_mutex.synchronize { @pool[key]&.pop } || new_connection(uri)
+      now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      http = @pool_mutex.synchronize do
+        entries = @pool[key] ||= []
+        fresh = nil
+        while (entry = entries.pop)
+          if now - entry.checked_in_at < KEEP_ALIVE_TIMEOUT
+            fresh = entry.http
+            break
+          else
+            entry.http.finish rescue nil
+          end
+        end
+        fresh
+      end
+      http || new_connection(uri)
     end
 
     def checkin(key, http)
       @pool_mutex.synchronize do
         pool_for_key = @pool[key] ||= []
         if pool_for_key.size < MAX_POOL_SIZE
-          pool_for_key.push(http)
+          pool_for_key.push(PoolEntry.new(http, Process.clock_gettime(Process::CLOCK_MONOTONIC)))
         else
           http.finish rescue nil
+        end
+      end
+    end
+
+    def start_reaper
+      t = Thread.new do
+        loop do
+          sleep KEEP_ALIVE_TIMEOUT / 2.0
+          reap_stale_connections
+        end
+      end
+      t.abort_on_exception = false
+      t
+    end
+
+    def reap_stale_connections
+      now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      @pool_mutex.synchronize do
+        @pool.each_value do |entries|
+          entries.reject! do |entry|
+            if now - entry.checked_in_at >= KEEP_ALIVE_TIMEOUT
+              entry.http.finish rescue nil
+              true
+            else
+              false
+            end
+          end
         end
       end
     end
