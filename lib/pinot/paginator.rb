@@ -1,15 +1,43 @@
 module Pinot
-  # Implements Pinot's server-side cursor API.
+  # Cursor-based pagination using Pinot's native server-side cursor API.
   #
   # The broker stores the full result set and returns slices on demand.
-  # All fetch requests after the first must go to the same broker that
-  # owns the cursor state (brokerHost:brokerPort from the initial response).
+  # All fetch requests after the first are pinned to the broker that owns
+  # the cursor (brokerHost:brokerPort from the initial response), ensuring
+  # correct broker affinity.
   #
-  # Usage:
-  #   paginator = conn.paginate("SELECT * FROM t LIMIT 10000", page_size: 100)
+  # == Obtaining a Paginator
+  #
+  #   paginator = conn.paginate(
+  #     "SELECT * FROM myTable WHERE col > 0",
+  #     page_size:     500,    # rows per page (default 1000)
+  #     table:         nil,    # used only for broker selection; omit for single-broker setups
+  #     extra_headers: {}      # merged into every HTTP request
+  #   )
+  #
+  # == Iteration
+  #
+  #   # Page-by-page (each page is a BrokerResponse):
   #   paginator.each_page { |resp| process(resp.result_table) }
-  #   paginator.each_row  { |row|  puts row.map(&:to_s).join(", ") }
-  #   paginator.delete    # optional early cleanup; also called automatically on exhaustion
+  #
+  #   # Row-by-row (each row is an Array of JsonNumber/String cells):
+  #   paginator.each_row { |row| puts row.map(&:to_s).join(", ") }
+  #
+  #   # Enumerable methods work because #each is aliased to #each_row:
+  #   rows = paginator.to_a
+  #   paginator.select { |row| row.first.to_s.to_i > 100 }
+  #
+  # == Cursor lifecycle
+  #
+  # The cursor is deleted from the broker automatically after the last page is
+  # consumed. Call #delete explicitly for early cleanup (e.g. break out of loop).
+  # DELETE failures are swallowed — cursors expire naturally on the broker side.
+  #
+  # == Protocol
+  #
+  # 1. POST /query/sql?getCursor=true&numRows=N  — submit query, get first page + requestId
+  # 2. GET  /responseStore/{id}/results?offset=K&numRows=N  — fetch subsequent pages
+  # 3. DELETE /responseStore/{id}  — release cursor (best-effort)
   class Paginator
     include Enumerable
 
