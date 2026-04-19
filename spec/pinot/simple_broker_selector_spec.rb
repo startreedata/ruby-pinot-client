@@ -24,5 +24,12 @@ RSpec.describe Pinot::SimpleBrokerSelector do
       sel = Pinot::SimpleBrokerSelector.new([])
       expect { sel.select_broker("") }.to raise_error(Pinot::BrokerNotFoundError, "no pre-configured broker lists")
     end
+
+    it "cycles through all brokers in order (round-robin)" do
+      list = ["broker1:8000", "broker2:8000", "broker3:8000"]
+      sel = Pinot::SimpleBrokerSelector.new(list)
+      results = (list.size * 2).times.map { sel.select_broker("") }
+      expect(results).to eq(list * 2)
+    end
   end
 end

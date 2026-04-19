@@ -38,6 +38,16 @@ module Pinot
       end
     end
 
+    def close
+      @reaper.kill rescue nil
+      @pool_mutex.synchronize do
+        @pool.each_value do |entries|
+          entries.each { |entry| entry.http.finish rescue nil }
+        end
+        @pool.clear
+      end
+    end
+
     private
 
     def with_connection(url)
