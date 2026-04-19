@@ -4,13 +4,15 @@ module Pinot
   class Connection
     attr_accessor :query_timeout_ms
 
-    def initialize(transport:, broker_selector:, use_multistage_engine: false, logger: nil, query_timeout_ms: nil)
+    def initialize(transport:, broker_selector:, use_multistage_engine: false, logger: nil,
+                   query_timeout_ms: nil, circuit_breaker_registry: nil)
       @transport = transport
       @broker_selector = broker_selector
       @use_multistage_engine = use_multistage_engine
       @trace = false
       @logger = logger
       @query_timeout_ms = query_timeout_ms
+      @circuit_breaker_registry = circuit_breaker_registry
     end
 
     def use_multistage_engine=(val)
@@ -30,7 +32,9 @@ module Pinot
         logger.debug "Executing SQL on table=#{table}: #{query}"
         broker = @broker_selector.select_broker(table)
         effective_timeout = query_timeout_ms || @query_timeout_ms
-        @transport.execute(broker, build_request(query, timeout_ms: effective_timeout))
+        run_with_circuit_breaker(broker) do
+          @transport.execute(broker, build_request(query, timeout_ms: effective_timeout))
+        end
       end
     end
 
@@ -96,6 +100,11 @@ module Pinot
     end
 
     private
+
+    def run_with_circuit_breaker(broker, &block)
+      return yield unless @circuit_breaker_registry
+      @circuit_breaker_registry.for(broker).call(broker, &block)
+    end
 
     def logger
       @logger || Pinot::Logging.logger

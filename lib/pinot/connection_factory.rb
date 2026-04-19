@@ -49,7 +49,8 @@ module Pinot
         broker_selector: selector,
         use_multistage_engine: config.use_multistage_engine || false,
         logger: config.logger,
-        query_timeout_ms: config.query_timeout_ms
+        query_timeout_ms: config.query_timeout_ms,
+        circuit_breaker_registry: build_circuit_breaker_registry(config)
       )
     end
 
@@ -71,7 +72,8 @@ module Pinot
       broker_selector: selector,
       use_multistage_engine: config.use_multistage_engine || false,
       logger: config.logger,
-      query_timeout_ms: config.query_timeout_ms
+      query_timeout_ms: config.query_timeout_ms,
+      circuit_breaker_registry: build_circuit_breaker_registry(config)
     )
 
     selector.init
@@ -96,4 +98,14 @@ module Pinot
     end
   end
   private_class_method :build_selector
+
+  def self.build_circuit_breaker_registry(config)
+    return nil unless config.circuit_breaker_enabled
+
+    CircuitBreakerRegistry.new(
+      failure_threshold: config.circuit_breaker_threshold || 5,
+      open_timeout:      config.circuit_breaker_timeout   || 30
+    )
+  end
+  private_class_method :build_circuit_breaker_registry
 end

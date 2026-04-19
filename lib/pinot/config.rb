@@ -23,10 +23,13 @@ module Pinot
     attr_accessor :broker_list, :http_timeout, :query_timeout_ms, :extra_http_header,
                   :use_multistage_engine, :controller_config, :logger, :tls_config,
                   :grpc_config, :zookeeper_config,
-                  :max_retries,        # Integer, default 0 (no retry)
-                  :retry_interval_ms,  # Integer ms base interval, default 200
-                  :pool_size,          # max idle connections per broker, default 5
-                  :keep_alive_timeout  # seconds before idle connection is reaped, default 30
+                  :max_retries,                  # Integer, default 0 (no retry)
+                  :retry_interval_ms,            # Integer ms base interval, default 200
+                  :pool_size,                    # max idle connections per broker, default 5
+                  :keep_alive_timeout,           # seconds before idle connection is reaped, default 30
+                  :circuit_breaker_enabled,      # bool, default false
+                  :circuit_breaker_threshold,    # consecutive failures before opening, default 5
+                  :circuit_breaker_timeout       # seconds circuit stays open, default 30
 
     def initialize(
       broker_list: [],
@@ -42,7 +45,10 @@ module Pinot
       max_retries: 0,
       retry_interval_ms: 200,
       pool_size: nil,
-      keep_alive_timeout: nil
+      keep_alive_timeout: nil,
+      circuit_breaker_enabled: false,
+      circuit_breaker_threshold: 5,
+      circuit_breaker_timeout: 30
     )
       @broker_list = broker_list
       @http_timeout = http_timeout
@@ -58,6 +64,9 @@ module Pinot
       @retry_interval_ms = retry_interval_ms
       @pool_size = pool_size
       @keep_alive_timeout = keep_alive_timeout
+      @circuit_breaker_enabled = circuit_breaker_enabled
+      @circuit_breaker_threshold = circuit_breaker_threshold
+      @circuit_breaker_timeout = circuit_breaker_timeout
     end
 
     def validate!
