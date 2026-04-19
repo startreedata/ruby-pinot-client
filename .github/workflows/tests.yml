@@ -23,7 +23,7 @@ jobs:
       matrix:
         ruby-version: ["3.2", "3.3", "3.4"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Ruby ${{ matrix.ruby-version }}
         uses: ruby/setup-ruby@v1
@@ -32,7 +32,7 @@ jobs:
           bundler-cache: false
 
       - name: Cache gems
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: vendor/bundle
           key: ${{ runner.os }}-ruby-${{ matrix.ruby-version }}-gems-${{ hashFiles('Gemfile.lock', 'pinot.gemspec') }}
@@ -49,7 +49,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: matrix.ruby-version == '3.2'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           files: coverage/lcov.info
           flags: unit
@@ -58,7 +58,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload coverage report artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: matrix.ruby-version == '3.2'
         with:
           name: coverage-report
@@ -69,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Integration Tests
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -78,7 +78,7 @@ jobs:
           bundler-cache: false
 
       - name: Cache gems
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: vendor/bundle
           key: ${{ runner.os }}-ruby-3.2-gems-${{ hashFiles('Gemfile.lock', 'pinot.gemspec') }}
