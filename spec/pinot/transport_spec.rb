@@ -424,6 +424,24 @@ RSpec.describe Pinot::HttpClient do
     end
   end
 
+  describe "#close" do
+    it "finishes all pooled connections and clears the pool" do
+      client = Pinot::HttpClient.new
+      # Manually checkin two fake connections
+      conn1 = double("Net::HTTP", finish: nil)
+      conn2 = double("Net::HTTP", finish: nil)
+      client.send(:checkin, "localhost:8000", conn1)
+      client.send(:checkin, "localhost:8000", conn2)
+
+      client.close
+
+      expect(conn1).to have_received(:finish)
+      expect(conn2).to have_received(:finish)
+      pool_size = client.instance_variable_get(:@pool).values.map(&:size).sum
+      expect(pool_size).to eq(0)
+    end
+  end
+
   describe "timeout configuration" do
     it "sets open_timeout, read_timeout, and write_timeout when timeout is provided" do
       stub_request(:post, "http://localhost:8000/query/sql")

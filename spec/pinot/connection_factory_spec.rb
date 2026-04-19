@@ -179,5 +179,19 @@ RSpec.describe "Pinot factory methods" do
       expect(selector).to be_a(Pinot::SimpleBrokerSelector)
       expect(selector.select_broker("")).to eq("grpc-host:8090")
     end
+
+    it "passes query_timeout_ms to Connection when grpc_config is set" do
+      grpc_cfg = Pinot::GrpcConfig.new(broker_list: ["localhost:8090"])
+      config = Pinot::ClientConfig.new(grpc_config: grpc_cfg, query_timeout_ms: 7000)
+
+      # Stub GrpcTransport and SimpleBrokerSelector so no real gRPC happens
+      fake_transport = double("GrpcTransport")
+      fake_selector  = instance_double(Pinot::SimpleBrokerSelector, init: nil)
+      allow(Pinot::GrpcTransport).to receive(:new).and_return(fake_transport)
+      allow(Pinot::SimpleBrokerSelector).to receive(:new).and_return(fake_selector)
+
+      conn = Pinot.from_config(config)
+      expect(conn.query_timeout_ms).to eq(7000)
+    end
   end
 end

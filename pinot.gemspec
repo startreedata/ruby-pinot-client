@@ -8,7 +8,7 @@ Gem::Specification.new do |spec|
   spec.description = "A Ruby client for Apache Pinot, mirroring the Go client API"
   spec.homepage = "https://github.com/startreedata/ruby-pinot-client"
   spec.license = "Apache-2.0"
-  spec.required_ruby_version = ">= 2.6"
+  spec.required_ruby_version = ">= 3.2"
 
   spec.metadata = {
     "homepage_uri"    => spec.homepage,
