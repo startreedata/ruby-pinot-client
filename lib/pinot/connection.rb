@@ -23,9 +23,11 @@ module Pinot
     end
 
     def execute_sql(table, query)
-      logger.debug "Executing SQL on table=#{table}: #{query}"
-      broker = @broker_selector.select_broker(table)
-      @transport.execute(broker, build_request(query))
+      Pinot::Instrumentation.instrument(table: table, query: query) do
+        logger.debug "Executing SQL on table=#{table}: #{query}"
+        broker = @broker_selector.select_broker(table)
+        @transport.execute(broker, build_request(query))
+      end
     rescue => e
       raise "unable to execute SQL on table #{table}: #{e.message}"
     end
