@@ -79,6 +79,10 @@ module Pinot
       results
     end
 
+    def paginate(table, query, page_size: Paginator::DEFAULT_PAGE_SIZE, query_timeout_ms: nil)
+      Paginator.new(self, table, query, page_size: page_size, query_timeout_ms: query_timeout_ms)
+    end
+
     def prepare(table, query_template)
       raise ArgumentError, "table name cannot be empty" if table.nil? || table.strip.empty?
       raise ArgumentError, "query template cannot be empty" if query_template.nil? || query_template.strip.empty?
