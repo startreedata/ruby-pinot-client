@@ -1,8 +1,34 @@
 module Pinot
-  # Per-broker circuit breaker. States: CLOSED (normal), OPEN (rejecting), HALF_OPEN (probing).
+  # Per-broker circuit breaker implementing the classic three-state machine:
   #
-  # failure_threshold  - consecutive failures before opening (default 5)
-  # open_timeout       - seconds to stay OPEN before moving to HALF_OPEN (default 30)
+  #   CLOSED    — normal operation; failures are counted
+  #   OPEN      — all calls rejected immediately with BrokerCircuitOpenError
+  #   HALF_OPEN — one probe call allowed through; success → CLOSED, failure → OPEN
+  #
+  # A breaker opens after +failure_threshold+ consecutive transport-level failures
+  # (BrokerUnavailableError, connection resets, timeouts). It automatically
+  # transitions to HALF_OPEN after +open_timeout+ seconds.
+  #
+  # Use CircuitBreakerRegistry to share breakers across Connection instances.
+  #
+  # == Configuration
+  #
+  #   config = Pinot::ClientConfig.new(
+  #     broker_list:               ["broker:8099"],
+  #     circuit_breaker_enabled:   true,
+  #     circuit_breaker_threshold: 3,   # open after 3 failures (default 5)
+  #     circuit_breaker_timeout:   10   # reopen probe after 10 s (default 30)
+  #   )
+  #   conn = Pinot.from_config(config)
+  #
+  # == Error class
+  #
+  #   Pinot::CircuitBreaker::BrokerCircuitOpenError
+  #     — raised when the circuit is OPEN; inherits from BrokerNotFoundError
+  #       so callers that already rescue BrokerNotFoundError get it for free.
+  #
+  # @param failure_threshold [Integer] consecutive failures before opening (default 5)
+  # @param open_timeout      [Integer] seconds to wait before probing again (default 30)
   class CircuitBreaker
     CLOSED    = :closed
     OPEN      = :open
@@ -85,7 +111,9 @@ module Pinot
     end
   end
 
-  # Registry of per-broker CircuitBreakers, shared across transport calls.
+  # Thread-safe registry that lazily creates and caches one CircuitBreaker per
+  # broker address string. Shared by all Connection instances built from the
+  # same ClientConfig so that failures from parallel queries accumulate correctly.
   class CircuitBreakerRegistry
     def initialize(failure_threshold: 5, open_timeout: 30)
       @failure_threshold = failure_threshold

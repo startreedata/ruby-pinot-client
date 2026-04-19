@@ -1,9 +1,24 @@
 module Pinot
+  # Build a Connection from a static list of broker addresses.
+  #
+  #   conn = Pinot.from_broker_list(["broker1:8099", "broker2:8099"])
+  #
+  # @param broker_list [Array<String>] broker host:port entries
+  # @param http_client [HttpClient, nil] optional pre-configured HTTP client
+  # @return [Connection]
   def self.from_broker_list(broker_list, http_client: nil)
     config = ClientConfig.new(broker_list: broker_list)
     from_config(config, http_client: http_client)
   end
 
+  # Build a Connection backed by a Pinot controller for automatic broker discovery.
+  # The controller is polled in the background to keep the broker list fresh.
+  #
+  #   conn = Pinot.from_controller("controller:9000")
+  #
+  # @param controller_address [String] controller host:port (or http://host:port)
+  # @param http_client [HttpClient, nil] optional pre-configured HTTP client
+  # @return [Connection]
   def self.from_controller(controller_address, http_client: nil)
     config = ClientConfig.new(
       controller_config: ControllerConfig.new(controller_address: controller_address)
@@ -11,6 +26,25 @@ module Pinot
     from_config(config, http_client: http_client)
   end
 
+  # Build a Connection from a fully specified ClientConfig.
+  # This is the most flexible factory: it handles all transport types (HTTP,
+  # gRPC, ZooKeeper) and wires up the circuit breaker and retry logic from
+  # config flags.
+  #
+  #   config = Pinot::ClientConfig.new(
+  #     broker_list:             ["broker:8099"],
+  #     query_timeout_ms:        5_000,
+  #     use_multistage_engine:   true,
+  #     max_retries:             2,
+  #     retry_interval_ms:       100,
+  #     circuit_breaker_enabled: true
+  #   )
+  #   conn = Pinot.from_config(config)
+  #
+  # @param config     [ClientConfig] fully populated config object
+  # @param http_client [HttpClient, nil] optional pre-configured HTTP client
+  # @return [Connection]
+  # @raise [ConfigurationError] if no broker source is specified in config
   def self.from_config(config, http_client: nil)
     config.validate!
 

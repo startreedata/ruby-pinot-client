@@ -1,14 +1,23 @@
 module Pinot
+  # Low-level instrumentation hook that fires after every query executed via
+  # Connection#execute_sql. This is the extension point used by
+  # Pinot::ActiveSupportNotifications and any custom observability layer.
+  #
+  # Register a single callback:
+  #
+  #   Pinot::Instrumentation.on_query = ->(event) do
+  #     MyMetrics.record(event[:table], event[:duration_ms], event[:success])
+  #   end
+  #
+  # The event Hash contains:
+  #   :table        => String  — table name passed to execute_sql
+  #   :query        => String  — SQL string
+  #   :duration_ms  => Float   — wall-clock time in milliseconds
+  #   :success      => Boolean — false when an exception was raised
+  #   :error        => Exception or nil — the exception on failure, nil on success
+  #
+  # Only one callback can be registered at a time. Set on_query= to nil to remove it.
   module Instrumentation
-    # Called around every query execution.
-    # Implement by setting Pinot::Instrumentation.on_query = proc { |event| ... }
-    # event is a Hash:
-    #   :table        => String
-    #   :query        => String
-    #   :duration_ms  => Float
-    #   :success      => Boolean
-    #   :error        => Exception or nil
-
     def self.on_query=(callback)
       @on_query = callback
     end
