@@ -52,7 +52,7 @@ RSpec.describe Pinot::Connection do
       stub_request(:post, "http://localhost:8000/query/sql")
         .to_return(status: 500, body: "")
 
-      expect { conn.execute_sql("myTable", "select 1") }.to raise_error(RuntimeError)
+      expect { conn.execute_sql("myTable", "select 1") }.to raise_error(Pinot::TransportError)
 
       expect(received).not_to be_nil
       expect(received[:table]).to eq("myTable")
@@ -103,6 +103,13 @@ RSpec.describe Pinot::Connection do
 
       conn = build_connection
       expect { conn.execute_sql("", "select count(*) from t") }.to raise_error(/unexpected (token|character)/i)
+    end
+
+    it "propagates TransportError without wrapping" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 503, body: "")
+      conn = build_connection
+      expect { conn.execute_sql("t", "select 1") }.to raise_error(Pinot::TransportError)
     end
   end
 

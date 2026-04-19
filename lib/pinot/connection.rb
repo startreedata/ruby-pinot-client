@@ -32,8 +32,6 @@ module Pinot
         effective_timeout = query_timeout_ms || @query_timeout_ms
         @transport.execute(broker, build_request(query, timeout_ms: effective_timeout))
       end
-    rescue => e
-      raise "unable to execute SQL on table #{table}: #{e.message}"
     end
 
     def execute_sql_with_timeout(table, query, timeout_ms)
