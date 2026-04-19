@@ -40,6 +40,15 @@ module Pinot
       end
     end
 
+    def delete(url, headers: {})
+      uri = URI.parse(url)
+      with_connection(url) do |http|
+        req = Net::HTTP::Delete.new(uri.request_uri)
+        headers.each { |k, v| req[k] = v }
+        http.request(req)
+      end
+    end
+
     def close
       @reaper.kill rescue nil
       @pool_mutex.synchronize do
@@ -182,6 +191,8 @@ module Pinot
     # Pinot exception errorCode values that indicate query timeout.
     # 250 = ExecutionTimeoutError (server-side), 400 = BrokerTimeoutError.
     TIMEOUT_ERROR_CODES = [250, 400].freeze
+
+    attr_reader :http_client
 
     def initialize(http_client:, extra_headers: {}, timeout_ms: nil, logger: nil,
                    max_retries: 0, retry_interval_ms: 200)

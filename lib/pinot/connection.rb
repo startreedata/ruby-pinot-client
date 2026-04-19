@@ -79,8 +79,15 @@ module Pinot
       results
     end
 
-    def paginate(table, query, page_size: Paginator::DEFAULT_PAGE_SIZE, query_timeout_ms: nil)
-      Paginator.new(self, table, query, page_size: page_size, query_timeout_ms: query_timeout_ms)
+    def paginate(query, page_size: Paginator::DEFAULT_PAGE_SIZE, table: nil, extra_headers: {})
+      broker = @broker_selector.select_broker(table || "")
+      Paginator.new(
+        @transport.http_client,
+        broker,
+        query,
+        page_size:     page_size,
+        extra_headers: extra_headers
+      )
     end
 
     def prepare(table, query_template)
