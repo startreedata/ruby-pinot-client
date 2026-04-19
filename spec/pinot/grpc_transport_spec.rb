@@ -45,6 +45,8 @@ unless defined?(Pinot::Broker)
   end
 end
 
+require "pinot/grpc_config"
+
 # Load the real transport if grpc gem is available; otherwise define a
 # minimal stand-in so the spec can exercise the logic via doubles.
 begin
