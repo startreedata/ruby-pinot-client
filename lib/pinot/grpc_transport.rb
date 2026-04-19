@@ -1,6 +1,10 @@
-require "grpc"
-require_relative "proto/broker_service_pb"
-require_relative "proto/broker_service_services_pb"
+begin
+  require "grpc"
+  require_relative "proto/broker_service_pb"
+  require_relative "proto/broker_service_services_pb"
+rescue LoadError
+  raise LoadError, "The 'grpc' gem is required to use Pinot::GrpcTransport. Add it to your Gemfile: gem \"grpc\""
+end
 require_relative "grpc_config"
 require_relative "response"
 

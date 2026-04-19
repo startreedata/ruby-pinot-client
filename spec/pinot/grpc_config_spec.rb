@@ -1,4 +1,5 @@
 require "spec_helper"
+require "pinot/grpc_config"
 
 RSpec.describe Pinot::GrpcConfig do
   describe "default values" do
