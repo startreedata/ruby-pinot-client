@@ -6,14 +6,16 @@ require "openssl"
 
 module Pinot
   class HttpClient
-    MAX_POOL_SIZE = 5
-    KEEP_ALIVE_TIMEOUT = 30
+    DEFAULT_POOL_SIZE = 5
+    DEFAULT_KEEP_ALIVE_TIMEOUT = 30
 
     PoolEntry = Struct.new(:http, :checked_in_at)
 
-    def initialize(timeout: nil, tls_config: nil)
+    def initialize(timeout: nil, tls_config: nil, pool_size: nil, keep_alive_timeout: nil)
       @timeout = timeout
       @tls_config = tls_config
+      @max_pool_size = pool_size || DEFAULT_POOL_SIZE
+      @keep_alive_timeout = keep_alive_timeout || DEFAULT_KEEP_ALIVE_TIMEOUT
       @pool = {}
       @pool_mutex = Mutex.new
       @reaper = start_reaper
@@ -70,7 +72,7 @@ module Pinot
         entries = @pool[key] ||= []
         fresh = nil
         while (entry = entries.pop)
-          if now - entry.checked_in_at < KEEP_ALIVE_TIMEOUT
+          if now - entry.checked_in_at < @keep_alive_timeout
             fresh = entry.http
             break
           else
@@ -85,7 +87,7 @@ module Pinot
     def checkin(key, http)
       @pool_mutex.synchronize do
         pool_for_key = @pool[key] ||= []
-        if pool_for_key.size < MAX_POOL_SIZE
+        if pool_for_key.size < @max_pool_size
           pool_for_key.push(PoolEntry.new(http, Process.clock_gettime(Process::CLOCK_MONOTONIC)))
         else
           http.finish rescue nil
@@ -96,7 +98,7 @@ module Pinot
     def start_reaper
       t = Thread.new do
         loop do
-          sleep KEEP_ALIVE_TIMEOUT / 2.0
+          sleep @keep_alive_timeout / 2.0
           reap_stale_connections
         end
       end
@@ -109,7 +111,7 @@ module Pinot
       @pool_mutex.synchronize do
         @pool.each_value do |entries|
           entries.reject! do |entry|
-            if now - entry.checked_in_at >= KEEP_ALIVE_TIMEOUT
+            if now - entry.checked_in_at >= @keep_alive_timeout
               entry.http.finish rescue nil
               true
             else
@@ -167,6 +169,15 @@ module Pinot
       Net::OpenTimeout, Net::ReadTimeout, Net::WriteTimeout
     ].freeze
 
+    # HTTP status codes that map to specific error classes and are safe to retry
+    HTTP_ERROR_MAP = {
+      "429" => RateLimitError,
+      "503" => BrokerUnavailableError,
+      "504" => BrokerUnavailableError
+    }.freeze
+
+    RETRYABLE_HTTP_ERRORS = [RateLimitError, BrokerUnavailableError].freeze
+
     def initialize(http_client:, extra_headers: {}, timeout_ms: nil, logger: nil,
                    max_retries: 0, retry_interval_ms: 200)
       @http_client = http_client
@@ -194,9 +205,9 @@ module Pinot
 
         resp = @http_client.post(url, body: body, headers: headers)
 
-        if resp.code == "503"
+        if (error_class = HTTP_ERROR_MAP[resp.code])
           logger.error "Pinot broker returned HTTP #{resp.code}"
-          raise TransportError, "http exception with HTTP status code #{resp.code}"
+          raise error_class, "http exception with HTTP status code #{resp.code}"
         end
 
         unless resp.code.to_i == 200
@@ -209,7 +220,7 @@ module Pinot
         rescue JSON::ParserError => e
           raise e.message
         end
-      rescue TransportError, *RETRYABLE_ERRORS => e
+      rescue *RETRYABLE_HTTP_ERRORS, *RETRYABLE_ERRORS => e
         if attempts < max_attempts
           sleep_ms = (@retry_interval_ms || 200) * (2 ** (attempts - 1))
           sleep(sleep_ms / 1000.0)

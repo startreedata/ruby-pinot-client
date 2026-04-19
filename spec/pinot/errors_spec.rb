@@ -66,4 +66,33 @@ RSpec.describe "Pinot error classes" do
       end
     end.not_to raise_error
   end
+
+  it "defines Pinot::BrokerUnavailableError as a subclass of TransportError" do
+    expect(Pinot::BrokerUnavailableError.ancestors).to include(Pinot::TransportError)
+    expect(Pinot::BrokerUnavailableError.ancestors).to include(Pinot::Error)
+  end
+
+  it "defines Pinot::QueryTimeoutError as a subclass of TransportError" do
+    expect(Pinot::QueryTimeoutError.ancestors).to include(Pinot::TransportError)
+  end
+
+  it "defines Pinot::RateLimitError as a subclass of TransportError" do
+    expect(Pinot::RateLimitError.ancestors).to include(Pinot::TransportError)
+  end
+
+  it "can rescue BrokerUnavailableError as TransportError" do
+    expect do
+      raise Pinot::BrokerUnavailableError, "broker down"
+    rescue Pinot::TransportError
+      # rescued as parent
+    end.not_to raise_error
+  end
+
+  it "can rescue RateLimitError as TransportError" do
+    expect do
+      raise Pinot::RateLimitError, "rate limited"
+    rescue Pinot::TransportError
+      # rescued as parent
+    end.not_to raise_error
+  end
 end
