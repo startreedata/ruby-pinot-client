@@ -25,27 +25,24 @@ module Pinot
       @trace = false
     end
 
-    def execute_sql(table, query)
+    def execute_sql(table, query, query_timeout_ms: nil)
       Pinot::Instrumentation.instrument(table: table, query: query) do
         logger.debug "Executing SQL on table=#{table}: #{query}"
         broker = @broker_selector.select_broker(table)
-        @transport.execute(broker, build_request(query))
+        effective_timeout = query_timeout_ms || @query_timeout_ms
+        @transport.execute(broker, build_request(query, timeout_ms: effective_timeout))
       end
     rescue => e
       raise "unable to execute SQL on table #{table}: #{e.message}"
     end
 
     def execute_sql_with_timeout(table, query, timeout_ms)
-      logger.debug "Executing SQL with timeout=#{timeout_ms}ms on table=#{table}: #{query}"
-      broker = @broker_selector.select_broker(table)
-      @transport.execute(broker, build_request(query, timeout_ms: timeout_ms))
-    rescue => e
-      raise "unable to execute SQL on table #{table}: #{e.message}"
+      execute_sql(table, query, query_timeout_ms: timeout_ms)
     end
 
-    def execute_sql_with_params(table, query_pattern, params)
+    def execute_sql_with_params(table, query_pattern, params, query_timeout_ms: nil)
       query = format_query(query_pattern, params)
-      execute_sql(table, query)
+      execute_sql(table, query, query_timeout_ms: query_timeout_ms)
     rescue => e
       # Re-raise format errors directly (they already have the right message)
       raise e
