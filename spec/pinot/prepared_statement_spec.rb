@@ -279,6 +279,39 @@ RSpec.describe Pinot::PreparedStatementImpl do
     end
   end
 
+  describe "per-request headers" do
+    let(:sql_response) do
+      '{"resultTable":{"dataSchema":{"columnDataTypes":["LONG"],"columnNames":["cnt"]},"rows":[[1]]},"exceptions":[],"numServersQueried":1,"numServersResponded":1,"timeUsedMs":1}'
+    end
+
+    def build_conn
+      selector = Pinot::SimpleBrokerSelector.new(["localhost:8000"])
+      transport = Pinot::JsonHttpTransport.new(http_client: Pinot::HttpClient.new, extra_headers: {})
+      conn = Pinot::Connection.new(transport: transport, broker_selector: selector)
+      selector.init
+      conn
+    end
+
+    it "forwards headers: to transport from #execute" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .with(headers: { "X-Auth" => "tok1" })
+        .to_return(status: 200, body: sql_response)
+
+      stmt = build_conn.prepare("t", "SELECT * FROM t WHERE id = ?")
+      stmt.set_int(1, 1)
+      expect(stmt.execute(headers: { "X-Auth" => "tok1" })).to be_a(Pinot::BrokerResponse)
+    end
+
+    it "forwards headers: to transport from #execute_with_params" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .with(headers: { "X-Auth" => "tok2" })
+        .to_return(status: 200, body: sql_response)
+
+      stmt = build_conn.prepare("t", "SELECT * FROM t WHERE id = ?")
+      expect(stmt.execute_with_params(1, headers: { "X-Auth" => "tok2" })).to be_a(Pinot::BrokerResponse)
+    end
+  end
+
   describe "concurrent usage" do
     let(:conn) { Pinot::Connection.new(transport: double, broker_selector: double) }
 

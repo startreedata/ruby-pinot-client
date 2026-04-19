@@ -60,7 +60,7 @@ module Pinot
       nil
     end
 
-    def execute
+    def execute(headers: {})
       @mutex.synchronize do
         raise PreparedStatementClosedError, "prepared statement is closed" if @closed
         @parameters.each_with_index do |p, i|
@@ -72,10 +72,10 @@ module Pinot
       rescue => e
         raise "failed to build query: #{e.message}"
       end
-      @connection.execute_sql(@table, query)
+      @connection.execute_sql(@table, query, headers: headers)
     end
 
-    def execute_with_params(*params)
+    def execute_with_params(*params, headers: {})
       @mutex.synchronize { raise PreparedStatementClosedError, "prepared statement is closed" if @closed }
       if params.length != @param_count
         raise "expected #{@param_count} parameters, got #{params.length}"
@@ -85,7 +85,7 @@ module Pinot
       rescue => e
         raise "failed to build query: #{e.message}"
       end
-      @connection.execute_sql(@table, query)
+      @connection.execute_sql(@table, query, headers: headers)
     end
 
     def clear_parameters

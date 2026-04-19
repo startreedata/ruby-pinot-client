@@ -27,13 +27,14 @@ module Pinot
       @trace = false
     end
 
-    def execute_sql(table, query, query_timeout_ms: nil)
+    def execute_sql(table, query, query_timeout_ms: nil, headers: {})
       Pinot::Instrumentation.instrument(table: table, query: query) do
         logger.debug "Executing SQL on table=#{table}: #{query}"
         broker = @broker_selector.select_broker(table)
         effective_timeout = query_timeout_ms || @query_timeout_ms
         run_with_circuit_breaker(broker) do
-          @transport.execute(broker, build_request(query, timeout_ms: effective_timeout))
+          @transport.execute(broker, build_request(query, timeout_ms: effective_timeout),
+                             extra_request_headers: headers)
         end
       end
     end
@@ -42,11 +43,10 @@ module Pinot
       execute_sql(table, query, query_timeout_ms: timeout_ms)
     end
 
-    def execute_sql_with_params(table, query_pattern, params, query_timeout_ms: nil)
+    def execute_sql_with_params(table, query_pattern, params, query_timeout_ms: nil, headers: {})
       query = format_query(query_pattern, params)
-      execute_sql(table, query, query_timeout_ms: query_timeout_ms)
+      execute_sql(table, query, query_timeout_ms: query_timeout_ms, headers: headers)
     rescue => e
-      # Re-raise format errors directly (they already have the right message)
       raise e
     end
 
