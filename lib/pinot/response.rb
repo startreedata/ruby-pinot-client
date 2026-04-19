@@ -188,7 +188,11 @@ module Pinot
                 :num_docs_scanned, :num_entries_scanned_in_filter,
                 :num_entries_scanned_post_filter, :total_docs,
                 :time_used_ms, :min_consuming_freshness_time_ms,
-                :num_groups_limit_reached
+                :num_groups_limit_reached,
+                # cursor fields — only present when getCursor=true
+                :request_id, :num_rows_result_set, :offset, :num_rows,
+                :broker_host, :broker_port,
+                :submission_time_ms, :expiration_time_ms
 
     def self.from_json(json_str)
       hash = JSON.parse(json_str)
@@ -215,6 +219,19 @@ module Pinot
       @total_docs = hash["totalDocs"] || 0
       @time_used_ms = hash["timeUsedMs"] || 0
       @min_consuming_freshness_time_ms = hash["minConsumingFreshnessTimeMs"] || 0
+
+      @request_id          = hash["requestId"]
+      @num_rows_result_set = hash["numRowsResultSet"]
+      @offset              = hash["offset"]
+      @num_rows            = hash["numRows"]
+      @broker_host         = hash["brokerHost"]
+      @broker_port         = hash["brokerPort"]
+      @submission_time_ms  = hash["submissionTimeMs"]
+      @expiration_time_ms  = hash["expirationTimeMs"]
+    end
+
+    def cursor?
+      !@request_id.nil?
     end
   end
 end

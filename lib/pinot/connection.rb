@@ -79,6 +79,17 @@ module Pinot
       results
     end
 
+    def paginate(query, page_size: Paginator::DEFAULT_PAGE_SIZE, table: nil, extra_headers: {})
+      broker = @broker_selector.select_broker(table || "")
+      Paginator.new(
+        @transport.http_client,
+        broker,
+        query,
+        page_size:     page_size,
+        extra_headers: extra_headers
+      )
+    end
+
     def prepare(table, query_template)
       raise ArgumentError, "table name cannot be empty" if table.nil? || table.strip.empty?
       raise ArgumentError, "query template cannot be empty" if query_template.nil? || query_template.strip.empty?
