@@ -27,6 +27,25 @@ module Pinot
       return conn
     end
 
+    if config.zookeeper_config
+      selector = ZookeeperBrokerSelector.new(zk_path: config.zookeeper_config.zk_path)
+      selector.init
+
+      inner = http_client || HttpClient.new(timeout: config.http_timeout, tls_config: config.tls_config)
+      transport = JsonHttpTransport.new(
+        http_client: inner,
+        extra_headers: config.extra_http_header || {},
+        logger: config.logger
+      )
+
+      return Connection.new(
+        transport: transport,
+        broker_selector: selector,
+        use_multistage_engine: config.use_multistage_engine || false,
+        logger: config.logger
+      )
+    end
+
     inner = http_client || HttpClient.new(timeout: config.http_timeout, tls_config: config.tls_config)
 
     transport = JsonHttpTransport.new(

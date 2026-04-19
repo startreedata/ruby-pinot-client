@@ -1,4 +1,14 @@
 module Pinot
+  class ZookeeperConfig
+    attr_accessor :zk_path,           # "host:port" or "host1:port,host2:port/chroot"
+                  :session_timeout_ms # default 30000
+
+    def initialize(zk_path:, session_timeout_ms: 30_000)
+      @zk_path            = zk_path
+      @session_timeout_ms = session_timeout_ms
+    end
+  end
+
   class ControllerConfig
     attr_accessor :controller_address, :update_freq_ms, :extra_controller_api_headers
 
@@ -12,7 +22,7 @@ module Pinot
   class ClientConfig
     attr_accessor :broker_list, :http_timeout, :extra_http_header,
                   :use_multistage_engine, :controller_config, :logger, :tls_config,
-                  :grpc_config
+                  :grpc_config, :zookeeper_config
 
     def initialize(
       broker_list: [],
@@ -22,7 +32,8 @@ module Pinot
       controller_config: nil,
       logger: nil,
       tls_config: nil,
-      grpc_config: nil
+      grpc_config: nil,
+      zookeeper_config: nil
     )
       @broker_list = broker_list
       @http_timeout = http_timeout
@@ -32,6 +43,7 @@ module Pinot
       @logger = logger
       @tls_config = tls_config
       @grpc_config = grpc_config
+      @zookeeper_config = zookeeper_config
     end
   end
 end
