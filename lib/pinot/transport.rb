@@ -171,12 +171,17 @@ module Pinot
 
     # HTTP status codes that map to specific error classes and are safe to retry
     HTTP_ERROR_MAP = {
+      "408" => QueryTimeoutError,
       "429" => RateLimitError,
       "503" => BrokerUnavailableError,
       "504" => BrokerUnavailableError
     }.freeze
 
     RETRYABLE_HTTP_ERRORS = [RateLimitError, BrokerUnavailableError].freeze
+
+    # Pinot exception errorCode values that indicate query timeout.
+    # 250 = ExecutionTimeoutError (server-side), 400 = BrokerTimeoutError.
+    TIMEOUT_ERROR_CODES = [250, 400].freeze
 
     def initialize(http_client:, extra_headers: {}, timeout_ms: nil, logger: nil,
                    max_retries: 0, retry_interval_ms: 200)
@@ -215,18 +220,24 @@ module Pinot
           raise TransportError, "http exception with HTTP status code #{resp.code}"
         end
 
-        begin
+        broker_response = begin
           BrokerResponse.from_json(resp.body)
         rescue JSON::ParserError => e
           raise e.message
         end
+
+        if (timeout_ex = broker_response.exceptions.find { |ex| TIMEOUT_ERROR_CODES.include?(ex.error_code) })
+          raise QueryTimeoutError, timeout_ex.message
+        end
+
+        broker_response
       rescue *RETRYABLE_HTTP_ERRORS, *RETRYABLE_ERRORS => e
         if attempts < max_attempts
           sleep_ms = (@retry_interval_ms || 200) * (2 ** (attempts - 1))
           sleep(sleep_ms / 1000.0)
           retry
         end
-        raise
+        raise Net::ReadTimeout === e || Net::WriteTimeout === e ? QueryTimeoutError.new(e.message) : e
       end
     end
 

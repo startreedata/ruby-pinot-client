@@ -34,6 +34,102 @@ RSpec.describe Pinot::JsonHttpTransport do
       req = Pinot::Request.new("sql", "select count(*) from t", false, false)
       expect { transport.execute(broker, req) }.to raise_error(Pinot::TransportError, /400/)
     end
+
+    it "raises QueryTimeoutError on HTTP 408" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 408, body: "")
+
+      transport = build_transport
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false)
+      expect { transport.execute(broker, req) }.to raise_error(Pinot::QueryTimeoutError, /408/)
+    end
+  end
+
+  describe "QueryTimeoutError from broker response exceptions" do
+    def timeout_body(error_code, message)
+      JSON.generate(
+        "resultTable" => { "dataSchema" => { "columnDataTypes" => [], "columnNames" => [] }, "rows" => [] },
+        "exceptions" => [{ "errorCode" => error_code, "message" => message }],
+        "numServersQueried" => 1, "numServersResponded" => 0, "timeUsedMs" => 10000
+      )
+    end
+
+    it "raises QueryTimeoutError when errorCode is 250 (ExecutionTimeoutError)" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 200, body: timeout_body(250, "ExecutionTimeoutError"))
+
+      transport = build_transport
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false)
+      expect { transport.execute(broker, req) }
+        .to raise_error(Pinot::QueryTimeoutError, /ExecutionTimeoutError/)
+    end
+
+    it "raises QueryTimeoutError when errorCode is 400 (BrokerTimeoutError)" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 200, body: timeout_body(400, "BrokerTimeoutError"))
+
+      transport = build_transport
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false)
+      expect { transport.execute(broker, req) }
+        .to raise_error(Pinot::QueryTimeoutError, /BrokerTimeoutError/)
+    end
+
+    it "does not raise QueryTimeoutError for non-timeout exception codes" do
+      body = JSON.generate(
+        "resultTable" => { "dataSchema" => { "columnDataTypes" => ["LONG"], "columnNames" => ["cnt"] }, "rows" => [[0]] },
+        "exceptions" => [{ "errorCode" => 200, "message" => "QueryExecutionError" }],
+        "numServersQueried" => 1, "numServersResponded" => 1, "timeUsedMs" => 5
+      )
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 200, body: body)
+
+      transport = build_transport
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false)
+      expect { transport.execute(broker, req) }.not_to raise_error
+    end
+
+    it "QueryTimeoutError is a subclass of TransportError" do
+      expect(Pinot::QueryTimeoutError.ancestors).to include(Pinot::TransportError)
+    end
+  end
+
+  describe "QueryTimeoutError from network timeout" do
+    it "re-raises Net::ReadTimeout as QueryTimeoutError after retries exhausted" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_raise(Net::ReadTimeout)
+
+      transport = build_transport
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false)
+      expect { transport.execute(broker, req) }.to raise_error(Pinot::QueryTimeoutError)
+    end
+
+    it "re-raises Net::WriteTimeout as QueryTimeoutError after retries exhausted" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_raise(Net::WriteTimeout)
+
+      transport = build_transport
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false)
+      expect { transport.execute(broker, req) }.to raise_error(Pinot::QueryTimeoutError)
+    end
+
+    it "still retries Net::ReadTimeout before raising QueryTimeoutError" do
+      call_count = 0
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return do
+          call_count += 1
+          raise Net::ReadTimeout if call_count < 3
+          { status: 200, body: sql_response }
+        end
+
+      transport = Pinot::JsonHttpTransport.new(
+        http_client: Pinot::HttpClient.new,
+        max_retries: 2,
+        retry_interval_ms: 0
+      )
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false)
+      expect(transport.execute(broker, req)).to be_a(Pinot::BrokerResponse)
+      expect(call_count).to eq 3
+    end
   end
 
   describe "trace header" do
