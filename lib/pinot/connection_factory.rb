@@ -37,7 +37,9 @@ module Pinot
       transport = JsonHttpTransport.new(
         http_client: inner,
         extra_headers: config.extra_http_header || {},
-        logger: config.logger
+        logger: config.logger,
+        max_retries: config.max_retries || 0,
+        retry_interval_ms: config.retry_interval_ms || 200
       )
 
       return Connection.new(
@@ -53,7 +55,9 @@ module Pinot
     transport = JsonHttpTransport.new(
       http_client: inner,
       extra_headers: config.extra_http_header || {},
-      logger: config.logger
+      logger: config.logger,
+      max_retries: config.max_retries || 0,
+      retry_interval_ms: config.retry_interval_ms || 200
     )
 
     selector = build_selector(config, inner)

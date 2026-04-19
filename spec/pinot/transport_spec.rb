@@ -204,6 +204,89 @@ RSpec.describe Pinot::JsonHttpTransport do
       transport.execute(broker, req)
     end
   end
+
+  describe "retry logic" do
+    let(:req) { Pinot::Request.new("sql", "select count(*) from t", false, false) }
+
+    def build_retry_transport(max_retries:, retry_interval_ms: 0, http_client: nil)
+      Pinot::JsonHttpTransport.new(
+        http_client: http_client || Pinot::HttpClient.new,
+        max_retries: max_retries,
+        retry_interval_ms: retry_interval_ms
+      )
+    end
+
+    it "does not retry when max_retries is 0 (default)" do
+      call_count = 0
+      stub_request(:post, "http://localhost:8000/query/sql").to_raise(Errno::ECONNRESET)
+
+      transport = build_retry_transport(max_retries: 0)
+      allow(transport).to receive(:sleep)
+
+      expect {
+        begin
+          transport.execute(broker, req)
+        rescue Errno::ECONNRESET
+          call_count += 1
+          raise
+        end
+      }.to raise_error(Errno::ECONNRESET)
+
+      expect(call_count).to eq(1)
+      expect(transport).not_to have_received(:sleep)
+    end
+
+    it "retries on Errno::ECONNRESET up to max_retries times then raises" do
+      stub_request(:post, "http://localhost:8000/query/sql").to_raise(Errno::ECONNRESET)
+
+      transport = build_retry_transport(max_retries: 2, retry_interval_ms: 0)
+      allow(transport).to receive(:sleep)
+
+      expect { transport.execute(broker, req) }.to raise_error(Errno::ECONNRESET)
+      # 1 initial attempt + 2 retries = 3 total requests
+      expect(WebMock).to have_requested(:post, "http://localhost:8000/query/sql").times(3)
+    end
+
+    it "succeeds on second attempt after first raises Errno::ECONNRESET" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_raise(Errno::ECONNRESET).then
+        .to_return(status: 200, body: sql_response)
+
+      transport = build_retry_transport(max_retries: 1, retry_interval_ms: 0)
+      allow(transport).to receive(:sleep)
+
+      resp = transport.execute(broker, req)
+      expect(resp).to be_a(Pinot::BrokerResponse)
+      expect(resp.result_table.get_long(0, 0)).to eq(97889)
+    end
+
+    it "retries on HTTP 503 response" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 503, body: "").then
+        .to_return(status: 200, body: sql_response)
+
+      transport = build_retry_transport(max_retries: 1, retry_interval_ms: 0)
+      allow(transport).to receive(:sleep)
+
+      resp = transport.execute(broker, req)
+      expect(resp).to be_a(Pinot::BrokerResponse)
+    end
+
+    it "uses exponential backoff (sleeps double each attempt)" do
+      stub_request(:post, "http://localhost:8000/query/sql").to_raise(Errno::ECONNRESET)
+
+      transport = build_retry_transport(max_retries: 3, retry_interval_ms: 200)
+      sleep_calls = []
+      allow(transport).to receive(:sleep) { |s| sleep_calls << s }
+
+      expect { transport.execute(broker, req) }.to raise_error(Errno::ECONNRESET)
+
+      # After attempt 1: sleep 200ms * 2^0 = 0.2s
+      # After attempt 2: sleep 200ms * 2^1 = 0.4s
+      # After attempt 3: sleep 200ms * 2^2 = 0.8s
+      expect(sleep_calls).to eq([0.2, 0.4, 0.8])
+    end
+  end
 end
 
 RSpec.describe Pinot::HttpClient do

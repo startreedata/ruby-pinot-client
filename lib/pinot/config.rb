@@ -22,7 +22,9 @@ module Pinot
   class ClientConfig
     attr_accessor :broker_list, :http_timeout, :query_timeout_ms, :extra_http_header,
                   :use_multistage_engine, :controller_config, :logger, :tls_config,
-                  :grpc_config, :zookeeper_config
+                  :grpc_config, :zookeeper_config,
+                  :max_retries,      # Integer, default 0 (no retry)
+                  :retry_interval_ms # Integer ms base interval, default 200
 
     def initialize(
       broker_list: [],
@@ -34,7 +36,9 @@ module Pinot
       logger: nil,
       tls_config: nil,
       grpc_config: nil,
-      zookeeper_config: nil
+      zookeeper_config: nil,
+      max_retries: 0,
+      retry_interval_ms: 200
     )
       @broker_list = broker_list
       @http_timeout = http_timeout
@@ -47,6 +51,8 @@ module Pinot
       @grpc_config = grpc_config
       @zookeeper_config = zookeeper_config
       @query_timeout_ms = query_timeout_ms
+      @max_retries = max_retries
+      @retry_interval_ms = retry_interval_ms
     end
 
     def validate!

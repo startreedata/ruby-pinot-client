@@ -62,6 +62,30 @@ The client periodically polls the controller's `/v2/brokers/tables` API and auto
 client = Pinot.from_controller("localhost:9000")
 ```
 
+### Via gRPC
+
+Requires the `grpc` gem (`gem "grpc", "~> 1.65"` in your Gemfile).
+
+```ruby
+grpc_config = Pinot::GrpcConfig.new(
+  broker_list: ["localhost:8090"],
+  timeout:     10,
+  extra_metadata: { "Authorization" => "Bearer <token>" }
+)
+config = Pinot::ClientConfig.new(grpc_config: grpc_config)
+client = Pinot.from_config(config)
+```
+
+### From ZooKeeper (dynamic broker discovery)
+
+Requires the `zk` gem (`gem "zk"` in your Gemfile). Watches `/EXTERNALVIEW/brokerResource` and automatically picks up broker changes.
+
+```ruby
+zk_config = Pinot::ZookeeperConfig.new(zk_path: "localhost:2181")
+config = Pinot::ClientConfig.new(zookeeper_config: zk_config)
+client = Pinot.from_config(config)
+```
+
 ### From a `ClientConfig`
 
 ```ruby
@@ -78,6 +102,8 @@ config = Pinot::ClientConfig.new(
 )
 client = Pinot.from_config(config)
 ```
+
+`validate!` raises `Pinot::ConfigurationError` early if the config is invalid.
 
 ### With TLS
 
@@ -110,6 +136,20 @@ config = Pinot::ClientConfig.new(
 )
 client = Pinot.from_config(config)
 ```
+
+## Instrumentation
+
+Hook into every query execution for metrics, tracing, or alerting:
+
+```ruby
+Pinot::Instrumentation.on_query = lambda do |event|
+  puts "#{event[:table]} #{event[:query][0..50]} " \
+       "#{event[:duration_ms].round(1)}ms " \
+       "success=#{event[:success]}"
+end
+```
+
+The event hash contains: `:table`, `:query`, `:duration_ms` (Float), `:success` (Boolean), `:error` (Exception or nil).
 
 ## Executing Queries
 
@@ -148,6 +188,19 @@ config = Pinot::ClientConfig.new(
 client = Pinot.from_config(config)
 ```
 
+### Per-request timeout
+
+```ruby
+# Global default via config
+config = Pinot::ClientConfig.new(
+  broker_list:      ["localhost:8000"],
+  query_timeout_ms: 5000
+)
+
+# One-off override per query
+resp = client.execute_sql_with_timeout("myTable", "SELECT * FROM myTable", 3000)
+```
+
 ### Trace
 
 ```ruby
@@ -180,6 +233,19 @@ rescue Pinot::TransportError => e
 rescue Pinot::Error => e
   puts "Pinot error: #{e.message}"
 end
+```
+
+## Retry
+
+Configure automatic retry with exponential backoff for transient errors (connection reset, timeout, HTTP 503):
+
+```ruby
+config = Pinot::ClientConfig.new(
+  broker_list:       ["localhost:8000"],
+  max_retries:       3,
+  retry_interval_ms: 200   # base interval; doubles each attempt (200ms, 400ms, 800ms)
+)
+client = Pinot.from_config(config)
 ```
 
 ## Reading Results
