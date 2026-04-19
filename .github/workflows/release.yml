@@ -15,11 +15,103 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Run Tests
+    strategy:
+      matrix:
+        ruby-version: ["3.2", "3.3"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Set up Ruby ${{ matrix.ruby-version }}
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+          bundler-cache: true
+
+      - name: Run unit tests
+        run: bundle exec rspec spec/pinot/
+
+  integration-test:
+    runs-on: ubuntu-latest
+    name: Integration Tests
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
+      - name: Start Apache Pinot via Docker
+        run: |
+          docker run -d \
+            --name pinot-quickstart \
+            -p 2123:2123 \
+            -p 9000:9000 \
+            -p 8000:8000 \
+            apachepinot/pinot:1.5.0 QuickStart -type BATCH
+          echo "Waiting for Pinot cluster to be ready..."
+
+      - name: Wait for Pinot broker to be ready
+        run: |
+          set +e
+          for i in $(seq 1 60); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health)
+            if [ "$STATUS" = "200" ]; then
+              echo "Pinot broker is ready after ${i}s"
+              exit 0
+            fi
+            echo "Attempt ${i}/60: broker not ready (HTTP ${STATUS}), retrying in 5s..."
+            sleep 5
+          done
+          echo "Pinot broker did not become ready in time"
+          docker logs pinot-quickstart
+          exit 1
+
+      - name: Wait for baseballStats table to be loaded
+        run: |
+          set +e
+          for i in $(seq 1 30); do
+            RESULT=$(curl -s -X POST \
+              -H "Content-Type: application/json" \
+              -d '{"sql":"select count(*) as cnt from baseballStats limit 1"}' \
+              http://localhost:8000/query/sql)
+            CNT=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['resultTable']['rows'][0][0])" 2>/dev/null)
+            if [ "$CNT" = "97889" ]; then
+              echo "baseballStats loaded with 97889 rows"
+              exit 0
+            fi
+            echo "Attempt ${i}/30: table not ready yet (cnt=${CNT}), retrying in 10s..."
+            sleep 10
+          done
+          echo "baseballStats table did not load in time"
+          docker logs pinot-quickstart
+          exit 1
+
+      - name: Run integration tests
+        run: bundle exec rspec spec/integration/ --format documentation
+        env:
+          BROKER_HOST: 127.0.0.1
+          BROKER_PORT: 8000
+
+      - name: Stop Pinot Docker container
+        if: always()
+        run: docker stop pinot-quickstart && docker rm pinot-quickstart
+
   create-release:
     runs-on: ubuntu-latest
     name: Create Release
+    needs: [test, integration-test]
     steps:
       - uses: actions/checkout@v4
         with:
