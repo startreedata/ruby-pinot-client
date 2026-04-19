@@ -108,33 +108,60 @@ module Pinot
       "Content-Type" => "application/json; charset=utf-8"
     }.freeze
 
-    def initialize(http_client:, extra_headers: {}, timeout_ms: nil, logger: nil)
+    RETRYABLE_ERRORS = [
+      Errno::ECONNRESET, Errno::ECONNREFUSED, Errno::ETIMEDOUT,
+      Net::OpenTimeout, Net::ReadTimeout, Net::WriteTimeout
+    ].freeze
+
+    def initialize(http_client:, extra_headers: {}, timeout_ms: nil, logger: nil,
+                   max_retries: 0, retry_interval_ms: 200)
       @http_client = http_client
       @extra_headers = extra_headers
       @timeout_ms = timeout_ms
       @logger = logger
+      @max_retries = max_retries
+      @retry_interval_ms = retry_interval_ms
     end
 
     def execute(broker_address, request)
       logger.debug "Pinot query to #{broker_address}: #{request.query}"
 
-      url = build_url(broker_address, request.query_format)
-      body = build_body(request)
-      headers = DEFAULT_HEADERS
-        .merge(@extra_headers)
-        .merge("X-Correlation-Id" => SecureRandom.uuid)
-
-      resp = @http_client.post(url, body: body, headers: headers)
-
-      unless resp.code.to_i == 200
-        logger.error "Pinot broker returned HTTP #{resp.code}"
-        raise TransportError, "http exception with HTTP status code #{resp.code}"
-      end
+      attempts = 0
+      max_attempts = (@max_retries || 0) + 1
 
       begin
-        BrokerResponse.from_json(resp.body)
-      rescue JSON::ParserError => e
-        raise e.message
+        attempts += 1
+
+        url = build_url(broker_address, request.query_format)
+        body = build_body(request)
+        headers = DEFAULT_HEADERS
+          .merge(@extra_headers)
+          .merge("X-Correlation-Id" => SecureRandom.uuid)
+
+        resp = @http_client.post(url, body: body, headers: headers)
+
+        if resp.code == "503"
+          logger.error "Pinot broker returned HTTP #{resp.code}"
+          raise TransportError, "http exception with HTTP status code #{resp.code}"
+        end
+
+        unless resp.code.to_i == 200
+          logger.error "Pinot broker returned HTTP #{resp.code}"
+          raise TransportError, "http exception with HTTP status code #{resp.code}"
+        end
+
+        begin
+          BrokerResponse.from_json(resp.body)
+        rescue JSON::ParserError => e
+          raise e.message
+        end
+      rescue TransportError, *RETRYABLE_ERRORS => e
+        if attempts < max_attempts
+          sleep_ms = (@retry_interval_ms || 200) * (2 ** (attempts - 1))
+          sleep(sleep_ms / 1000.0)
+          retry
+        end
+        raise
       end
     end
 
