@@ -78,6 +78,26 @@ RSpec.describe Pinot::JsonHttpTransport do
       req = Pinot::Request.new("sql", "select count(*) from t", false, false)
       transport.execute(broker, req)
     end
+
+    it "includes timeoutMs from request.query_timeout_ms when set" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .with { |r| JSON.parse(r.body)["queryOptions"].to_s.include?("timeoutMs=5000") }
+        .to_return(status: 200, body: sql_response)
+
+      transport = build_transport
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false, 5000)
+      transport.execute(broker, req)
+    end
+
+    it "does not include timeoutMs when request.query_timeout_ms is nil" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .with { |r| !JSON.parse(r.body)["queryOptions"].to_s.include?("timeoutMs") }
+        .to_return(status: 200, body: sql_response)
+
+      transport = build_transport
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false, nil)
+      transport.execute(broker, req)
+    end
   end
 
   describe "headers" do

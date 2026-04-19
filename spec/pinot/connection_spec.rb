@@ -6,7 +6,7 @@ RSpec.describe Pinot::Connection do
     '{"resultTable":{"dataSchema":{"columnDataTypes":["LONG"],"columnNames":["cnt"]},"rows":[[97889]]},"exceptions":[],"numServersQueried":1,"numServersResponded":1,"timeUsedMs":5}'
   end
 
-  def build_connection(broker: "localhost:8000", use_multistage: false)
+  def build_connection(broker: "localhost:8000", use_multistage: false, query_timeout_ms: nil)
     selector = Pinot::SimpleBrokerSelector.new([broker])
     transport = Pinot::JsonHttpTransport.new(
       http_client: Pinot::HttpClient.new,
@@ -15,7 +15,8 @@ RSpec.describe Pinot::Connection do
     conn = Pinot::Connection.new(
       transport: transport,
       broker_selector: selector,
-      use_multistage_engine: use_multistage
+      use_multistage_engine: use_multistage,
+      query_timeout_ms: query_timeout_ms
     )
     selector.init
     conn
@@ -77,6 +78,36 @@ RSpec.describe Pinot::Connection do
       conn.open_trace
       conn.close_trace
       conn.execute_sql("", "select count(*) from t")
+    end
+  end
+
+  describe "query_timeout_ms" do
+    it "passes query_timeout_ms from config to the request" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .with { |r| JSON.parse(r.body)["queryOptions"].to_s.include?("timeoutMs=3000") }
+        .to_return(status: 200, body: sql_response)
+
+      conn = build_connection(query_timeout_ms: 3000)
+      conn.execute_sql("", "select count(*) from t")
+    end
+
+    it "execute_sql_with_timeout overrides the timeout for a single query" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .with { |r| JSON.parse(r.body)["queryOptions"].to_s.include?("timeoutMs=7500") }
+        .to_return(status: 200, body: sql_response)
+
+      conn = build_connection(query_timeout_ms: 3000)
+      resp = conn.execute_sql_with_timeout("", "select count(*) from t", 7500)
+      expect(resp).to be_a(Pinot::BrokerResponse)
+    end
+
+    it "execute_sql_with_timeout does not permanently change the connection timeout" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 200, body: sql_response)
+
+      conn = build_connection(query_timeout_ms: 3000)
+      conn.execute_sql_with_timeout("", "select count(*) from t", 7500)
+      expect(conn.query_timeout_ms).to eq 3000
     end
   end
 

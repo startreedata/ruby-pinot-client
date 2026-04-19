@@ -61,7 +61,8 @@ module Pinot
       transport: transport,
       broker_selector: selector,
       use_multistage_engine: config.use_multistage_engine || false,
-      logger: config.logger
+      logger: config.logger,
+      query_timeout_ms: config.query_timeout_ms
     )
 
     selector.init
