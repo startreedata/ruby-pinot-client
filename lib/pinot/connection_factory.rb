@@ -38,6 +38,7 @@ module Pinot
         http_client: inner,
         extra_headers: config.extra_http_header || {},
         logger: config.logger,
+        timeout_ms: config.query_timeout_ms,
         max_retries: config.max_retries || 0,
         retry_interval_ms: config.retry_interval_ms || 200
       )
@@ -46,7 +47,8 @@ module Pinot
         transport: transport,
         broker_selector: selector,
         use_multistage_engine: config.use_multistage_engine || false,
-        logger: config.logger
+        logger: config.logger,
+        query_timeout_ms: config.query_timeout_ms
       )
     end
 
