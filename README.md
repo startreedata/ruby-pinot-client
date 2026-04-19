@@ -277,6 +277,10 @@ Environment variables:
 | `BROKER_HOST` | `127.0.0.1` | Pinot broker hostname   |
 | `BROKER_PORT` | `8000`      | Pinot broker HTTP port  |
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a full history of releases.
+
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).
