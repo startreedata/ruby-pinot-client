@@ -22,9 +22,9 @@ require_relative "pinot/connection"
 require_relative "pinot/prepared_statement"
 require_relative "pinot/connection_factory"
 
+require_relative "pinot/grpc_config"
 begin
   require_relative "pinot/grpc_transport"
-  require_relative "pinot/grpc_config"
 rescue LoadError
   # grpc gem not available; GrpcTransport disabled
 end
