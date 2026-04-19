@@ -25,4 +25,6 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rspec", "~> 3.12"
   spec.add_development_dependency "webmock", "~> 3.18"
   spec.add_development_dependency "rake", "~> 13.0"
+  spec.add_development_dependency "grpc", "~> 1.65"
+  spec.add_development_dependency "grpc-tools", "~> 1.65"
 end

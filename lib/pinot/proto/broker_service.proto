@@ -1,0 +1,16 @@
+syntax = "proto3";
+package pinot.broker.grpc;
+
+message BrokerRequest {
+  string sql = 1;
+  map<string, string> metadata = 2;
+}
+
+message BrokerResponse {
+  int32 result_row_size = 1;
+  bytes payload = 2;
+}
+
+service PinotClientGrpcBrokerService {
+  rpc Submit(BrokerRequest) returns (BrokerResponse);
+}

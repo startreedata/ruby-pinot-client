@@ -12,6 +12,21 @@ module Pinot
   end
 
   def self.from_config(config, http_client: nil)
+    if config.grpc_config
+      transport = GrpcTransport.new(config.grpc_config)
+      selector  = SimpleBrokerSelector.new(config.grpc_config.broker_list)
+
+      conn = Connection.new(
+        transport: transport,
+        broker_selector: selector,
+        use_multistage_engine: config.use_multistage_engine || false,
+        logger: config.logger
+      )
+
+      selector.init
+      return conn
+    end
+
     inner = http_client || HttpClient.new(timeout: config.http_timeout, tls_config: config.tls_config)
 
     transport = JsonHttpTransport.new(

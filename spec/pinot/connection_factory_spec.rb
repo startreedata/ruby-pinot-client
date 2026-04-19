@@ -75,5 +75,21 @@ RSpec.describe "Pinot factory methods" do
       )
       Pinot.from_config(config)
     end
+
+    it "uses GrpcTransport and SimpleBrokerSelector when grpc_config is set", skip: !defined?(Pinot::GrpcTransport) do
+      grpc_cfg = Pinot::GrpcConfig.new(broker_list: ["grpc-host:8090"])
+      config = Pinot::ClientConfig.new(grpc_config: grpc_cfg)
+
+      conn = Pinot.from_config(config)
+
+      expect(conn).to be_a(Pinot::Connection)
+
+      transport = conn.instance_variable_get(:@transport)
+      expect(transport).to be_a(Pinot::GrpcTransport)
+
+      selector = conn.instance_variable_get(:@broker_selector)
+      expect(selector).to be_a(Pinot::SimpleBrokerSelector)
+      expect(selector.select_broker("")).to eq("grpc-host:8090")
+    end
   end
 end
