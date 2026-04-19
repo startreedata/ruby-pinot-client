@@ -37,6 +37,8 @@ jobs:
 
       - name: Run unit tests
         run: bundle exec rspec spec/pinot/
+        env:
+          COVERAGE_MIN: 80
 
   integration-test:
     runs-on: ubuntu-latest
