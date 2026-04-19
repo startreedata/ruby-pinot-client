@@ -106,6 +106,55 @@ RSpec.describe "Pinot factory methods" do
       expect(selector).to be_a(Pinot::ZookeeperBrokerSelector)
     end
 
+    it "passes query_timeout_ms to Connection and transport when zookeeper_config is set" do
+      fake_zk = double("FakeZK")
+      allow(fake_zk).to receive(:get).and_return([
+        JSON.dump("mapFields" => { "myTable_OFFLINE" => { "Broker_host1_8000" => "ONLINE" } }),
+        nil
+      ])
+      allow(fake_zk).to receive(:register)
+      allow(fake_zk).to receive(:exists?).and_return(true)
+
+      zk_config = Pinot::ZookeeperConfig.new(zk_path: "localhost:2181")
+      config = Pinot::ClientConfig.new(zookeeper_config: zk_config, query_timeout_ms: 5000)
+
+      allow(Pinot::ZookeeperBrokerSelector).to receive(:new).and_wrap_original do |orig, **kwargs|
+        orig.call(zk_client: fake_zk, **kwargs)
+      end
+
+      conn = Pinot.from_config(config)
+      expect(conn.query_timeout_ms).to eq 5000
+
+      transport = conn.instance_variable_get(:@transport)
+      expect(transport.instance_variable_get(:@timeout_ms)).to eq 5000
+    end
+
+    it "passes max_retries and retry_interval_ms to transport when zookeeper_config is set" do
+      fake_zk = double("FakeZK")
+      allow(fake_zk).to receive(:get).and_return([
+        JSON.dump("mapFields" => { "myTable_OFFLINE" => { "Broker_host1_8000" => "ONLINE" } }),
+        nil
+      ])
+      allow(fake_zk).to receive(:register)
+      allow(fake_zk).to receive(:exists?).and_return(true)
+
+      zk_config = Pinot::ZookeeperConfig.new(zk_path: "localhost:2181")
+      config = Pinot::ClientConfig.new(
+        zookeeper_config: zk_config,
+        max_retries: 3,
+        retry_interval_ms: 500
+      )
+
+      allow(Pinot::ZookeeperBrokerSelector).to receive(:new).and_wrap_original do |orig, **kwargs|
+        orig.call(zk_client: fake_zk, **kwargs)
+      end
+
+      conn = Pinot.from_config(config)
+      transport = conn.instance_variable_get(:@transport)
+      expect(transport.instance_variable_get(:@max_retries)).to eq 3
+      expect(transport.instance_variable_get(:@retry_interval_ms)).to eq 500
+    end
+
     it "passes query_timeout_ms through to Connection" do
       config = Pinot::ClientConfig.new(
         broker_list: ["localhost:8000"],
