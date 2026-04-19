@@ -339,4 +339,50 @@ RSpec.describe Pinot::Connection do
       expect(resp).to be_a(Pinot::BrokerResponse)
     end
   end
+
+  describe "per-request headers" do
+    it "forwards headers: kwarg from execute_sql to transport" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .with(headers: { "X-Auth-Token" => "secret" })
+        .to_return(status: 200, body: sql_response)
+
+      conn = build_connection
+      resp = conn.execute_sql("", "select 1", headers: { "X-Auth-Token" => "secret" })
+      expect(resp).to be_a(Pinot::BrokerResponse)
+    end
+
+    it "forwards headers: kwarg from execute_sql_with_params to transport" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .with(headers: { "X-Trace-Id" => "abc123" })
+        .to_return(status: 200, body: sql_response)
+
+      conn = build_connection
+      resp = conn.execute_sql_with_params("", "select ?", [1], headers: { "X-Trace-Id" => "abc123" })
+      expect(resp).to be_a(Pinot::BrokerResponse)
+    end
+
+    it "works without headers: kwarg (backward compatible)" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 200, body: sql_response)
+
+      conn = build_connection
+      expect { conn.execute_sql("", "select 1") }.not_to raise_error
+    end
+
+    it "per-request headers are isolated between calls" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 200, body: sql_response)
+
+      conn = build_connection
+      conn.execute_sql("", "select 1", headers: { "X-Call" => "first" })
+
+      # Second call without headers should not include the first call's header
+      stub = stub_request(:post, "http://localhost:8000/query/sql")
+        .with { |r| !r.headers.key?("X-Call") }
+        .to_return(status: 200, body: sql_response)
+
+      conn.execute_sql("", "select 1")
+      expect(stub).to have_been_requested
+    end
+  end
 end

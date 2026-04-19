@@ -188,7 +188,7 @@ module Pinot
       @retry_interval_ms = retry_interval_ms
     end
 
-    def execute(broker_address, request)
+    def execute(broker_address, request, extra_request_headers: {})
       logger.debug "Pinot query to #{broker_address}: #{request.query}"
 
       attempts = 0
@@ -202,6 +202,7 @@ module Pinot
         headers = DEFAULT_HEADERS
           .merge(@extra_headers)
           .merge("X-Correlation-Id" => SecureRandom.uuid)
+          .merge(extra_request_headers)
 
         resp = @http_client.post(url, body: body, headers: headers)
 

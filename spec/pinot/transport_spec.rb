@@ -130,6 +130,35 @@ RSpec.describe Pinot::JsonHttpTransport do
       req = Pinot::Request.new("sql", "select count(*) from t", false, false)
       transport.execute(broker, req)
     end
+
+    it "merges per-request headers with global extra_headers" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .with(headers: { "X-Global" => "global", "X-Request" => "request" })
+        .to_return(status: 200, body: sql_response)
+
+      transport = build_transport(extra_headers: { "X-Global" => "global" })
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false)
+      transport.execute(broker, req, extra_request_headers: { "X-Request" => "request" })
+    end
+
+    it "per-request headers override global extra_headers for the same key" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .with(headers: { "X-Auth" => "new-token" })
+        .to_return(status: 200, body: sql_response)
+
+      transport = build_transport(extra_headers: { "X-Auth" => "old-token" })
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false)
+      transport.execute(broker, req, extra_request_headers: { "X-Auth" => "new-token" })
+    end
+
+    it "works with empty extra_request_headers (default)" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .to_return(status: 200, body: sql_response)
+
+      transport = build_transport
+      req = Pinot::Request.new("sql", "select count(*) from t", false, false)
+      expect { transport.execute(broker, req) }.not_to raise_error
+    end
   end
 
   describe "URL building" do
