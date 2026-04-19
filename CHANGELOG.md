@@ -7,12 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-04-19
+
 ### Added
-- gRPC transport support for communicating with Pinot brokers over gRPC
-- ZooKeeper-based broker discovery strategy
-- Per-request query timeout configuration
-- Config validation with descriptive error messages
-- Instrumentation hooks for observability and metrics integration
+- TTL-based idle connection eviction in `HttpClient` connection pool (#16)
+
+## [1.9.0] - 2026-04-19
+
+### Fixed
+- gRPC wiring: `GrpcConfig` is now loaded unconditionally so gRPC transport always works (#15)
+
+## [1.8.0] - 2026-04-19
+
+### Added
+- Retry logic with exponential backoff for transient broker errors (#14)
+- Full README documentation covering all client features
+
+## [1.7.0] - 2026-04-18
+
+### Added
+- `bin/bump-version` script for managing gem version bumps
+- Release gates: unit and integration tests must pass before publishing
+
+## [1.6.0] - 2026-04-18
+
+### Added
+- `ClientConfig` validation with descriptive error messages (#12)
+- Instrumentation hooks for observability and metrics integration (#12)
+
+### Fixed
+- Duplicate `query_timeout_ms` declaration in `ClientConfig`
+
+## [1.5.0] - 2026-04-18
+
+### Added
+- Per-request query timeout configuration via `timeoutMs` (#11)
+
+## [1.4.0] - 2026-04-18
+
+### Added
+- ZooKeeper-based dynamic broker discovery strategy (#10)
 
 ## [1.3.0] - 2026-04-18
 
@@ -73,7 +107,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README with installation, usage, and API documentation
 - Release workflow for GitHub Packages
 
-[Unreleased]: https://github.com/startreedata/ruby-pinot-client/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/startreedata/ruby-pinot-client/compare/v1.10.0...HEAD
+[1.10.0]: https://github.com/startreedata/ruby-pinot-client/compare/v1.9.0...v1.10.0
+[1.9.0]: https://github.com/startreedata/ruby-pinot-client/compare/v1.8.0...v1.9.0
+[1.8.0]: https://github.com/startreedata/ruby-pinot-client/compare/v1.7.0...v1.8.0
+[1.7.0]: https://github.com/startreedata/ruby-pinot-client/compare/v1.6.0...v1.7.0
+[1.6.0]: https://github.com/startreedata/ruby-pinot-client/compare/v1.5.0...v1.6.0
+[1.5.0]: https://github.com/startreedata/ruby-pinot-client/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/startreedata/ruby-pinot-client/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/startreedata/ruby-pinot-client/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/startreedata/ruby-pinot-client/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/startreedata/ruby-pinot-client/compare/v1.0.2...v1.1.0
