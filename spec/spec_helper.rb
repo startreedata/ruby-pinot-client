@@ -15,6 +15,9 @@ SimpleCov.start do
   add_filter "/spec/"
   add_filter "/vendor/"
   add_filter "/proto/"
+  # grpc_transport requires the optional grpc gem which is not in the Gemfile;
+  # exclude it from coverage so the threshold reflects actually-loadable code.
+  add_filter "grpc_transport.rb"
   track_files "lib/**/*.rb"
   # Only enforce minimum coverage during unit test runs (not integration tests,
   # which intentionally exercise a narrow slice of code).

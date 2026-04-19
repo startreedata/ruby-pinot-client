@@ -1,4 +1,11 @@
 RSpec.describe Pinot::TableAwareBrokerSelector do
+  describe "#init" do
+    it "raises NotImplementedError because subclasses must implement it" do
+      expect { Pinot::TableAwareBrokerSelector.new.init }
+        .to raise_error(NotImplementedError, /subclasses must implement init/)
+    end
+  end
+
   let(:selector) do
     sel = Pinot::TableAwareBrokerSelector.new
     sel.update_broker_data(["host1:8000", "host2:8000"], {

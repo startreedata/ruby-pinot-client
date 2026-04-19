@@ -130,6 +130,18 @@ RSpec.describe Pinot::ZookeeperBrokerSelector do
       expect { selector_no_client.send(:build_zk_client) }
         .to raise_error(Pinot::ConfigurationError, /zk.*gem.*required/i)
     end
+
+    it "calls ZK.new when zk gem is available and no client injected" do
+      fake_zk = double("ZK real")
+      stub_const("ZK", Class.new { def self.new(_path); end })
+      allow(ZK).to receive(:new).with("localhost:2181").and_return(fake_zk)
+
+      selector_no_client = described_class.new(zk_path: "localhost:2181")
+      # Stub require so the gem "load" step succeeds without the real gem
+      allow(selector_no_client).to receive(:require).with("zk")
+      result = selector_no_client.send(:build_zk_client)
+      expect(result).to eq fake_zk
+    end
   end
 
   describe "parse_external_view edge cases" do

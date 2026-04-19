@@ -422,6 +422,21 @@ RSpec.describe Pinot::HttpClient do
       pool_size = client.instance_variable_get(:@pool).values.map(&:size).sum
       expect(pool_size).to eq(0)
     end
+
+    it "keeps fresh connections in the pool when TTL has not elapsed" do
+      http = double("Net::HTTP fresh", finish: nil)
+
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(base_time)
+      client.send(:checkin, key, http)
+
+      # Reap before TTL expires — connection should remain
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(base_time + 1)
+      client.send(:reap_stale_connections)
+
+      expect(http).not_to have_received(:finish)
+      pool_size = client.instance_variable_get(:@pool).values.map(&:size).sum
+      expect(pool_size).to eq(1)
+    end
   end
 
   describe "#close" do

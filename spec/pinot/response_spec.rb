@@ -486,3 +486,63 @@ RSpec.describe Pinot::BrokerResponse, "missing resultTable key" do
     expect(resp.result_table).to be_nil
   end
 end
+
+RSpec.describe Pinot::SelectionResults do
+  it "parses columns and results from hash" do
+    sr = Pinot::SelectionResults.new("columns" => ["a", "b"], "results" => [[1, 2], [3, 4]])
+    expect(sr.columns).to eq ["a", "b"]
+    expect(sr.results).to eq [[1, 2], [3, 4]]
+  end
+
+  it "defaults to empty arrays when keys are absent" do
+    sr = Pinot::SelectionResults.new({})
+    expect(sr.columns).to eq []
+    expect(sr.results).to eq []
+  end
+end
+
+RSpec.describe Pinot::AggregationResult do
+  it "parses all fields from hash" do
+    ar = Pinot::AggregationResult.new(
+      "function" => "count", "value" => "42",
+      "groupByColumns" => ["col1"], "groupByResult" => [{"group" => ["v1"], "value" => "42"}]
+    )
+    expect(ar.function).to eq "count"
+    expect(ar.value).to eq "42"
+    expect(ar.group_by_columns).to eq ["col1"]
+    expect(ar.group_by_result).to eq [{"group" => ["v1"], "value" => "42"}]
+  end
+end
+
+RSpec.describe Pinot::JsonNumber do
+  describe "#==" do
+    it "returns true when comparing two JsonNumbers with the same raw value" do
+      expect(Pinot::JsonNumber.new(42)).to eq Pinot::JsonNumber.new(42)
+    end
+
+    it "returns false when comparing to a non-JsonNumber" do
+      expect(Pinot::JsonNumber.new(42)).not_to eq 42
+      expect(Pinot::JsonNumber.new(42)).not_to eq "42"
+      expect(Pinot::JsonNumber.new(42)).not_to eq nil
+    end
+  end
+end
+
+RSpec.describe Pinot::ResultTable, "get_int and get_long with malformed raw" do
+  let(:rt) do
+    rt = Pinot::ResultTable.new(
+      "dataSchema" => { "columnDataTypes" => %w[INT LONG], "columnNames" => %w[a b] },
+      "rows" => []
+    )
+    rt.instance_variable_set(:@rows, [[Pinot::JsonNumber.new("not_a_number"), Pinot::JsonNumber.new("also_bad")]])
+    rt
+  end
+
+  it "returns 0 from get_int when raw is not parseable as a number" do
+    expect(rt.get_int(0, 0)).to eq 0
+  end
+
+  it "returns 0 from get_long when raw is not parseable as a number" do
+    expect(rt.get_long(0, 1)).to eq 0
+  end
+end

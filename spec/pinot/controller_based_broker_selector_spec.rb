@@ -104,6 +104,34 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
     end
   end
 
+  describe "background refresh error handling" do
+    it "logs a warning and keeps running when a refresh fails" do
+      call_count = 0
+      stub_request(:get, "http://localhost:9000/v2/brokers/tables?state=ONLINE")
+        .to_return do
+          call_count += 1
+          if call_count == 1
+            { status: 200, body: '{"t":[{"port":8000,"host":"h1","instanceName":"Broker_h1_8000"}]}' }
+          else
+            { status: 500, body: "error" }
+          end
+        end
+
+      config = Pinot::ControllerConfig.new(controller_address: "localhost:9000", update_freq_ms: 200)
+      sel = Pinot::ControllerBasedBrokerSelector.new(config)
+
+      log_messages = []
+      test_logger = Logger.new(StringIO.new)
+      test_logger.formatter = proc { |_sev, _dt, _prog, msg| log_messages << msg; "" }
+      sel.instance_variable_set(:@logger, test_logger)
+
+      sel.init
+      sleep 0.5
+
+      expect(log_messages.any? { |m| m.include?("refresh failed") || m.include?("HTTP") }).to be true
+    end
+  end
+
   describe "#build_controller_url additional scheme cases" do
     let(:sel) { Pinot::ControllerBasedBrokerSelector.new(Pinot::ControllerConfig.new) }
 
