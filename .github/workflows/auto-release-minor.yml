@@ -26,12 +26,23 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby-version }}
-          bundler-cache: true
+          bundler-cache: false
+
+      - name: Cache gems
+        uses: actions/cache@v4
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-ruby-${{ matrix.ruby-version }}-gems-${{ hashFiles('Gemfile.lock', 'pinot.gemspec') }}
+          restore-keys: |
+            ${{ runner.os }}-ruby-${{ matrix.ruby-version }}-gems-
+
+      - name: Install gems
+        run: bundle config set --local path vendor/bundle && bundle install
 
       - name: Run unit tests
         run: bundle exec rspec spec/pinot/
         env:
-          COVERAGE_MIN: 80
+          COVERAGE_MIN: 95
 
   integration-test:
     runs-on: ubuntu-latest
@@ -43,7 +54,18 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
-          bundler-cache: true
+          bundler-cache: false
+
+      - name: Cache gems
+        uses: actions/cache@v4
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-ruby-3.2-gems-${{ hashFiles('Gemfile.lock', 'pinot.gemspec') }}
+          restore-keys: |
+            ${{ runner.os }}-ruby-3.2-gems-
+
+      - name: Install gems
+        run: bundle config set --local path vendor/bundle && bundle install
 
       - name: Start Apache Pinot via Docker
         run: |
@@ -209,7 +231,10 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
-          bundler-cache: true
+          bundler-cache: false
+
+      - name: Install gems
+        run: bundle config set --local path vendor/bundle && bundle install
 
       - name: Bump version.rb to match tag
         run: |

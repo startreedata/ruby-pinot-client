@@ -130,5 +130,98 @@ RSpec.describe Pinot::ZookeeperBrokerSelector do
       expect { selector_no_client.send(:build_zk_client) }
         .to raise_error(Pinot::ConfigurationError, /zk.*gem.*required/i)
     end
+
+    it "calls ZK.new when zk gem is available and no client injected" do
+      fake_zk = double("ZK real")
+      stub_const("ZK", Class.new { def self.new(_path); end })
+      allow(ZK).to receive(:new).with("localhost:2181").and_return(fake_zk)
+
+      selector_no_client = described_class.new(zk_path: "localhost:2181")
+      # Stub require so the gem "load" step succeeds without the real gem
+      allow(selector_no_client).to receive(:require).with("zk")
+      result = selector_no_client.send(:build_zk_client)
+      expect(result).to eq fake_zk
+    end
+  end
+
+  describe "parse_external_view edge cases" do
+    it "skips broker key with only 1 part (no underscore separation)" do
+      json = JSON.dump(
+        "mapFields" => {
+          "myTable_OFFLINE" => {
+            "Broker" => "ONLINE"
+          }
+        }
+      )
+      zk = double("ZK")
+      allow(zk).to receive(:get).and_return([json, nil])
+      allow(zk).to receive(:register)
+      allow(zk).to receive(:exists?).and_return(true)
+
+      sel = described_class.new(zk_path: "localhost:2181", zk_client: zk)
+      sel.init
+
+      map = sel.instance_variable_get(:@table_broker_map)
+      expect(map["myTable"]).to eq([])
+    end
+
+    it "skips broker key where last segment is non-numeric" do
+      json = JSON.dump(
+        "mapFields" => {
+          "myTable_OFFLINE" => {
+            "Broker_host1_notaport" => "ONLINE"
+          }
+        }
+      )
+      zk = double("ZK")
+      allow(zk).to receive(:get).and_return([json, nil])
+      allow(zk).to receive(:register)
+      allow(zk).to receive(:exists?).and_return(true)
+
+      sel = described_class.new(zk_path: "localhost:2181", zk_client: zk)
+      sel.init
+
+      map = sel.instance_variable_get(:@table_broker_map)
+      expect(map["myTable"]).to eq([])
+    end
+
+    it "empty mapFields results in empty broker list" do
+      json = JSON.dump("mapFields" => {})
+      zk = double("ZK")
+      allow(zk).to receive(:get).and_return([json, nil])
+      allow(zk).to receive(:register)
+      allow(zk).to receive(:exists?).and_return(true)
+
+      sel = described_class.new(zk_path: "localhost:2181", zk_client: zk)
+      sel.init
+
+      all_brokers = sel.instance_variable_get(:@all_broker_list)
+      expect(all_brokers).to eq([])
+    end
+
+    it "select_broker raises BrokerNotFoundError when empty mapFields and table name empty" do
+      json = JSON.dump("mapFields" => {})
+      zk = double("ZK")
+      allow(zk).to receive(:get).and_return([json, nil])
+      allow(zk).to receive(:register)
+      allow(zk).to receive(:exists?).and_return(true)
+
+      sel = described_class.new(zk_path: "localhost:2181", zk_client: zk)
+      sel.init
+
+      expect { sel.select_broker("") }
+        .to raise_error(Pinot::BrokerNotFoundError, /no available broker/)
+    end
+
+    it "missing mapFields key is treated as empty (no crash)" do
+      json = JSON.dump({})
+      zk = double("ZK")
+      allow(zk).to receive(:get).and_return([json, nil])
+      allow(zk).to receive(:register)
+      allow(zk).to receive(:exists?).and_return(true)
+
+      sel = described_class.new(zk_path: "localhost:2181", zk_client: zk)
+      expect { sel.init }.not_to raise_error
+    end
   end
 end

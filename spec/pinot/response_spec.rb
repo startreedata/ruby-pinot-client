@@ -415,4 +415,134 @@ RSpec.describe Pinot::ResultTable do
       expect(rt.get_double(1, 3)).to eq(-1.7976931348623157e+308)
     end
   end
+
+  describe "INT32_MAX + 1 overflow" do
+    let(:rt) do
+      Pinot::ResultTable.new(
+        "dataSchema" => { "columnDataTypes" => %w[INT INT], "columnNames" => %w[overflow_int exact_max] },
+        "rows" => [[Pinot::INT32_MAX + 1, Pinot::INT32_MAX]]
+      )
+    end
+
+    it "returns 0 for INT32_MAX + 1" do
+      expect(rt.get_int(0, 0)).to eq 0
+    end
+
+    it "returns INT32_MAX for exactly INT32_MAX" do
+      expect(rt.get_int(0, 1)).to eq Pinot::INT32_MAX
+    end
+  end
+
+  describe "get_float with Infinity string" do
+    let(:rt) do
+      Pinot::ResultTable.new(
+        "dataSchema" => { "columnDataTypes" => %w[FLOAT DOUBLE], "columnNames" => %w[pos_inf neg_inf] },
+        # Use string "Infinity" coerced into a fake JsonNumber via manual row construction
+        "rows" => []
+      )
+    end
+
+    it "returns 0.0 for JsonNumber containing 'Infinity'" do
+      # Manually build a ResultTable with a JsonNumber("Infinity") cell
+      rt2 = Pinot::ResultTable.new(
+        "dataSchema" => { "columnDataTypes" => %w[FLOAT], "columnNames" => %w[val] },
+        "rows" => []
+      )
+      # Inject a row with a fake JsonNumber directly
+      row = [Pinot::JsonNumber.new("Infinity")]
+      rt2.instance_variable_set(:@rows, [row])
+      expect(rt2.get_float(0, 0)).to eq 0.0
+    end
+
+    it "returns 0.0 for JsonNumber containing '-Infinity'" do
+      rt2 = Pinot::ResultTable.new(
+        "dataSchema" => { "columnDataTypes" => %w[DOUBLE], "columnNames" => %w[val] },
+        "rows" => []
+      )
+      row = [Pinot::JsonNumber.new("-Infinity")]
+      rt2.instance_variable_set(:@rows, [row])
+      expect(rt2.get_double(0, 0)).to eq 0.0
+    end
+  end
+
+  describe "get_string on non-JsonNumber cell" do
+    let(:rt) do
+      Pinot::ResultTable.new(
+        "dataSchema" => { "columnDataTypes" => %w[STRING], "columnNames" => %w[val] },
+        "rows" => [["plain_string"]]
+      )
+    end
+
+    it "returns .to_s of the cell value" do
+      expect(rt.get_string(0, 0)).to eq "plain_string"
+    end
+  end
+end
+
+RSpec.describe Pinot::BrokerResponse, "missing resultTable key" do
+  it "result_table is nil when resultTable key is absent from response JSON" do
+    json = '{"exceptions":[],"numServersQueried":1,"numServersResponded":1,"timeUsedMs":1}'
+    resp = Pinot::BrokerResponse.from_json(json)
+    expect(resp.result_table).to be_nil
+  end
+end
+
+RSpec.describe Pinot::SelectionResults do
+  it "parses columns and results from hash" do
+    sr = Pinot::SelectionResults.new("columns" => ["a", "b"], "results" => [[1, 2], [3, 4]])
+    expect(sr.columns).to eq ["a", "b"]
+    expect(sr.results).to eq [[1, 2], [3, 4]]
+  end
+
+  it "defaults to empty arrays when keys are absent" do
+    sr = Pinot::SelectionResults.new({})
+    expect(sr.columns).to eq []
+    expect(sr.results).to eq []
+  end
+end
+
+RSpec.describe Pinot::AggregationResult do
+  it "parses all fields from hash" do
+    ar = Pinot::AggregationResult.new(
+      "function" => "count", "value" => "42",
+      "groupByColumns" => ["col1"], "groupByResult" => [{"group" => ["v1"], "value" => "42"}]
+    )
+    expect(ar.function).to eq "count"
+    expect(ar.value).to eq "42"
+    expect(ar.group_by_columns).to eq ["col1"]
+    expect(ar.group_by_result).to eq [{"group" => ["v1"], "value" => "42"}]
+  end
+end
+
+RSpec.describe Pinot::JsonNumber do
+  describe "#==" do
+    it "returns true when comparing two JsonNumbers with the same raw value" do
+      expect(Pinot::JsonNumber.new(42)).to eq Pinot::JsonNumber.new(42)
+    end
+
+    it "returns false when comparing to a non-JsonNumber" do
+      expect(Pinot::JsonNumber.new(42)).not_to eq 42
+      expect(Pinot::JsonNumber.new(42)).not_to eq "42"
+      expect(Pinot::JsonNumber.new(42)).not_to eq nil
+    end
+  end
+end
+
+RSpec.describe Pinot::ResultTable, "get_int and get_long with malformed raw" do
+  let(:rt) do
+    rt = Pinot::ResultTable.new(
+      "dataSchema" => { "columnDataTypes" => %w[INT LONG], "columnNames" => %w[a b] },
+      "rows" => []
+    )
+    rt.instance_variable_set(:@rows, [[Pinot::JsonNumber.new("not_a_number"), Pinot::JsonNumber.new("also_bad")]])
+    rt
+  end
+
+  it "returns 0 from get_int when raw is not parseable as a number" do
+    expect(rt.get_int(0, 0)).to eq 0
+  end
+
+  it "returns 0 from get_long when raw is not parseable as a number" do
+    expect(rt.get_long(0, 1)).to eq 0
+  end
 end

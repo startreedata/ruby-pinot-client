@@ -308,5 +308,35 @@ RSpec.describe Pinot::Connection do
       bd = BigDecimal("3.141592653589793")
       expect(conn.format_arg(bd)).to eq "'3.141592653589793'"
     end
+
+    it "negative BigDecimal retains negative sign" do
+      expect(conn.format_arg(BigDecimal("-123.45"))).to eq "'-123.45'"
+    end
+
+    it "BigDecimal with decimal places retained" do
+      expect(conn.format_arg(BigDecimal("1.5"))).to eq "'1.5'"
+    end
+
+    it "Time with zero milliseconds has no rounding artifacts" do
+      t = Time.utc(2023, 6, 15, 10, 30, 0)
+      result = conn.format_arg(t)
+      expect(result).to eq "'2023-06-15 10:30:00.000'"
+    end
+
+    it "String with multiple single quotes escapes all of them" do
+      expect(conn.format_arg("it's a test's value")).to eq "'it''s a test''s value'"
+    end
+  end
+
+  describe "#execute_sql_with_params forwards query_timeout_ms" do
+    it "sends timeoutMs in the request body when query_timeout_ms is provided" do
+      stub_request(:post, "http://localhost:8000/query/sql")
+        .with { |r| JSON.parse(r.body)["queryOptions"].to_s.include?("timeoutMs=7777") }
+        .to_return(status: 200, body: sql_response)
+
+      conn = build_connection(query_timeout_ms: 7777)
+      resp = conn.execute_sql_with_params("", "SELECT ? LIMIT 1", [1])
+      expect(resp).to be_a(Pinot::BrokerResponse)
+    end
   end
 end

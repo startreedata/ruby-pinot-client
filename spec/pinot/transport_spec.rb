@@ -422,6 +422,21 @@ RSpec.describe Pinot::HttpClient do
       pool_size = client.instance_variable_get(:@pool).values.map(&:size).sum
       expect(pool_size).to eq(0)
     end
+
+    it "keeps fresh connections in the pool when TTL has not elapsed" do
+      http = double("Net::HTTP fresh", finish: nil)
+
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(base_time)
+      client.send(:checkin, key, http)
+
+      # Reap before TTL expires — connection should remain
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(base_time + 1)
+      client.send(:reap_stale_connections)
+
+      expect(http).not_to have_received(:finish)
+      pool_size = client.instance_variable_get(:@pool).values.map(&:size).sum
+      expect(pool_size).to eq(1)
+    end
   end
 
   describe "#close" do
@@ -492,25 +507,30 @@ RSpec.describe Pinot::HttpClient do
   end
 
   describe "TLS configuration" do
+    def build_mock_http
+      mock_http = instance_double(Net::HTTP)
+      allow(mock_http).to receive(:use_ssl=)
+      allow(mock_http).to receive(:verify_mode=)
+      allow(mock_http).to receive(:cert_store=)
+      allow(mock_http).to receive(:cert=)
+      allow(mock_http).to receive(:key=)
+      allow(mock_http).to receive(:open_timeout=)
+      allow(mock_http).to receive(:read_timeout=)
+      allow(mock_http).to receive(:write_timeout=)
+      allow(mock_http).to receive(:keep_alive_timeout=)
+      allow(mock_http).to receive(:start).and_return(mock_http)
+      allow(mock_http).to receive(:finish)
+      mock_response = instance_double(Net::HTTPResponse, code: "200", body: "{}")
+      allow(mock_http).to receive(:request).and_return(mock_response)
+      allow(Net::HTTP).to receive(:new).and_return(mock_http)
+      mock_http
+    end
+
     describe "when tls_config has insecure_skip_verify: true" do
       it "configures Net::HTTP with VERIFY_NONE for HTTPS URLs" do
         tls = Pinot::TlsConfig.new(insecure_skip_verify: true)
         client = Pinot::HttpClient.new(tls_config: tls)
-
-        mock_http = instance_double(Net::HTTP)
-        allow(mock_http).to receive(:use_ssl=)
-        allow(mock_http).to receive(:verify_mode=)
-        allow(mock_http).to receive(:open_timeout=)
-        allow(mock_http).to receive(:read_timeout=)
-        allow(mock_http).to receive(:write_timeout=)
-        allow(mock_http).to receive(:keep_alive_timeout=)
-        allow(mock_http).to receive(:start).and_return(mock_http)
-        allow(mock_http).to receive(:finish)
-
-        mock_response = instance_double(Net::HTTPResponse, code: "200", body: "{}")
-        allow(mock_http).to receive(:request).and_return(mock_response)
-
-        allow(Net::HTTP).to receive(:new).and_return(mock_http)
+        mock_http = build_mock_http
 
         client.get("https://localhost:8000/query/sql")
 
@@ -522,21 +542,7 @@ RSpec.describe Pinot::HttpClient do
     describe "when tls_config is nil (default)" do
       it "does not apply SSL config for HTTP URLs" do
         client = Pinot::HttpClient.new
-
-        mock_http = instance_double(Net::HTTP)
-        allow(mock_http).to receive(:use_ssl=)
-        allow(mock_http).to receive(:verify_mode=)
-        allow(mock_http).to receive(:open_timeout=)
-        allow(mock_http).to receive(:read_timeout=)
-        allow(mock_http).to receive(:write_timeout=)
-        allow(mock_http).to receive(:keep_alive_timeout=)
-        allow(mock_http).to receive(:start).and_return(mock_http)
-        allow(mock_http).to receive(:finish)
-
-        mock_response = instance_double(Net::HTTPResponse, code: "200", body: "{}")
-        allow(mock_http).to receive(:request).and_return(mock_response)
-
-        allow(Net::HTTP).to receive(:new).and_return(mock_http)
+        mock_http = build_mock_http
 
         client.get("http://localhost:8000/query/sql")
 
@@ -544,5 +550,101 @@ RSpec.describe Pinot::HttpClient do
         expect(mock_http).not_to have_received(:verify_mode=)
       end
     end
+
+    describe "HTTPS URL sets use_ssl = true" do
+      it "sets use_ssl=true when URL scheme is https" do
+        client = Pinot::HttpClient.new
+        mock_http = build_mock_http
+
+        client.get("https://localhost:8000/query/sql")
+
+        expect(mock_http).to have_received(:use_ssl=).with(true)
+      end
+    end
+
+    describe "TLS config with insecure_skip_verify: false" do
+      it "sets VERIFY_PEER (not VERIFY_NONE)" do
+        tls = Pinot::TlsConfig.new(insecure_skip_verify: false)
+        client = Pinot::HttpClient.new(tls_config: tls)
+        mock_http = build_mock_http
+
+        client.get("https://localhost:8000/query/sql")
+
+        expect(mock_http).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
+        expect(mock_http).not_to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_NONE)
+      end
+    end
+
+    describe "TLS config with CA cert + client cert + client key all set" do
+      it "configures cert_store, cert, and key on the Net::HTTP object" do
+        ca_cert_file = File.expand_path("../../fixtures/ca.pem", __dir__)
+        client_cert_file = File.expand_path("../../fixtures/client.crt", __dir__)
+        client_key_file = File.expand_path("../../fixtures/client.key", __dir__)
+
+        # Create temporary fake cert files for the test
+        require "tmpdir"
+        Dir.mktmpdir do |dir|
+          fake_ca = File.join(dir, "ca.pem")
+          fake_cert = File.join(dir, "client.crt")
+          fake_key = File.join(dir, "client.key")
+
+          # Generate a minimal self-signed cert/key pair for testing
+          key = OpenSSL::PKey::RSA.new(2048)
+          cert = OpenSSL::X509::Certificate.new
+          cert.version = 2
+          cert.serial = 1
+          cert.subject = OpenSSL::X509::Name.parse("/CN=test")
+          cert.issuer = cert.subject
+          cert.public_key = key.public_key
+          cert.not_before = Time.now - 1
+          cert.not_after = Time.now + 3600
+          cert.sign(key, OpenSSL::Digest::SHA256.new)
+
+          File.write(fake_ca, cert.to_pem)
+          File.write(fake_cert, cert.to_pem)
+          File.write(fake_key, key.to_pem)
+
+          tls = Pinot::TlsConfig.new(
+            ca_cert_file: fake_ca,
+            client_cert_file: fake_cert,
+            client_key_file: fake_key,
+            insecure_skip_verify: false
+          )
+          client = Pinot::HttpClient.new(tls_config: tls)
+          mock_http = build_mock_http
+
+          client.get("https://localhost:8000/query/sql")
+
+          expect(mock_http).to have_received(:use_ssl=).with(true)
+          expect(mock_http).to have_received(:cert_store=)
+          expect(mock_http).to have_received(:cert=)
+          expect(mock_http).to have_received(:key=)
+          expect(mock_http).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
+        end
+      end
+    end
+  end
+end
+
+RSpec.describe Pinot::JsonHttpTransport, "build_query_options precedence" do
+  let(:sql_response) do
+    '{"resultTable":{"dataSchema":{"columnDataTypes":["LONG"],"columnNames":["cnt"]},"rows":[[1]]},"exceptions":[],"numServersQueried":1,"numServersResponded":1,"timeUsedMs":1}'
+  end
+
+  it "request.query_timeout_ms takes precedence and appears last in queryOptions when both transport timeout_ms and request.query_timeout_ms are set" do
+    stub_request(:post, "http://localhost:8000/query/sql")
+      .with { |r|
+        opts = JSON.parse(r.body)["queryOptions"].to_s
+        # Both values may appear — the request's value must be present
+        opts.include?("timeoutMs=7777")
+      }
+      .to_return(status: 200, body: sql_response)
+
+    transport = Pinot::JsonHttpTransport.new(
+      http_client: Pinot::HttpClient.new,
+      timeout_ms: 5000
+    )
+    req = Pinot::Request.new("sql", "select 1", false, false, 7777)
+    transport.execute("localhost:8000", req)
   end
 end
