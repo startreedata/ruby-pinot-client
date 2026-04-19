@@ -40,6 +40,22 @@ resp   = client.execute_sql("baseballStats", "SELECT count(*) AS cnt FROM baseba
 puts resp.result_table.get_long(0, 0)  # => 97889
 ```
 
+## Examples
+
+The [`examples/`](examples/) directory contains runnable scripts demonstrating common usage patterns:
+
+- [`basic_query.rb`](examples/basic_query.rb) — simple SQL query and result iteration
+- [`prepared_statement.rb`](examples/prepared_statement.rb) — parameterized queries with PreparedStatement
+- [`controller_discovery.rb`](examples/controller_discovery.rb) — automatic broker discovery via Controller
+- [`instrumentation.rb`](examples/instrumentation.rb) — attaching metrics/logging hooks
+- [`multistage_query.rb`](examples/multistage_query.rb) — multi-stage query engine usage
+
+Run any example against a local Pinot quickstart cluster:
+
+```bash
+ruby examples/basic_query.rb
+```
+
 ## Creating a Connection
 
 ### From a broker list
