@@ -356,11 +356,71 @@ RSpec.describe Pinot::HttpClient do
       connections = Array.new(n) { double("Net::HTTP", finish: nil) }
       connections.each { |http| client.send(:checkin, key, http) }
 
+      # Pool stores PoolEntry objects; count entries across all keys
       pool_size = client.instance_variable_get(:@pool).values.map(&:size).sum
       expect(pool_size).to eq(Pinot::HttpClient::MAX_POOL_SIZE)
 
       # The overflow connection should have been finished
       expect(connections.last).to have_received(:finish)
+    end
+  end
+
+  describe "TTL eviction" do
+    let(:client) { Pinot::HttpClient.new }
+    let(:key) { "localhost:8000" }
+    let(:base_time) { 1_000_000.0 }
+
+    it "closes a stale connection on checkout and opens a new one" do
+      stale_http = double("Net::HTTP stale", finish: nil)
+      fresh_http = make_fake_http(make_response)
+
+      # Checkin at base_time
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(base_time)
+      client.send(:checkin, key, stale_http)
+
+      # Checkout after TTL has passed — stale entry should be closed, new connection opened
+      expired_time = base_time + Pinot::HttpClient::KEEP_ALIVE_TIMEOUT
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(expired_time)
+      expect(Net::HTTP).to receive(:new).once.and_return(fresh_http)
+
+      result = client.send(:checkout, key, URI.parse(url))
+
+      expect(stale_http).to have_received(:finish)
+      expect(result).to eq(fresh_http)
+    end
+
+    it "reuses a fresh connection on checkout without opening a new one" do
+      real_http = make_fake_http(make_response)
+
+      # Checkin and checkout at the same time
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(base_time)
+      client.send(:checkin, key, real_http)
+
+      expect(Net::HTTP).not_to receive(:new)
+      result = client.send(:checkout, key, URI.parse(url))
+
+      expect(result).to eq(real_http)
+    end
+
+    it "reaper closes idle connections and empties the pool" do
+      http1 = double("Net::HTTP 1", finish: nil)
+      http2 = double("Net::HTTP 2", finish: nil)
+
+      # Checkin both connections at base_time
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(base_time)
+      client.send(:checkin, key, http1)
+      client.send(:checkin, key, http2)
+
+      # Advance time past TTL and trigger the reaper
+      expired_time = base_time + Pinot::HttpClient::KEEP_ALIVE_TIMEOUT
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(expired_time)
+      client.send(:reap_stale_connections)
+
+      expect(http1).to have_received(:finish)
+      expect(http2).to have_received(:finish)
+
+      pool_size = client.instance_variable_get(:@pool).values.map(&:size).sum
+      expect(pool_size).to eq(0)
     end
   end
 
