@@ -36,7 +36,7 @@ jobs:
           bundler-cache: false
 
       - name: Cache gems
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: vendor/bundle
           key: ${{ runner.os }}-ruby-${{ matrix.ruby-version }}-gems-${{ hashFiles('Gemfile.lock', 'pinot.gemspec') }}
@@ -66,7 +66,7 @@ jobs:
           bundler-cache: false
 
       - name: Cache gems
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: vendor/bundle
           key: ${{ runner.os }}-ruby-3.2-gems-${{ hashFiles('Gemfile.lock', 'pinot.gemspec') }}

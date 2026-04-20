@@ -30,6 +30,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "simplecov-lcov", "~> 0.8"
   spec.add_development_dependency "rubocop", "~> 1.65"
   spec.add_development_dependency "rubocop-rspec", "~> 3.0"
+  spec.add_development_dependency "bundler-audit", "~> 0.9"
   # grpc is optional — install manually to use GrpcTransport
   # spec.add_development_dependency "grpc", "~> 1.65"
 end

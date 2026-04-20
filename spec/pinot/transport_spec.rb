@@ -636,7 +636,6 @@ RSpec.describe Pinot::HttpClient do
   describe "#close" do
     it "finishes all pooled connections and clears the pool" do
       client = described_class.new
-      # Manually checkin two fake connections
       conn1 = double("Net::HTTP", finish: nil)
       conn2 = double("Net::HTTP", finish: nil)
       client.send(:checkin, "localhost:8000", conn1)
@@ -648,6 +647,83 @@ RSpec.describe Pinot::HttpClient do
       expect(conn2).to have_received(:finish)
       pool_size = client.instance_variable_get(:@pool).values.map(&:size).sum
       expect(pool_size).to eq(0)
+    end
+
+    it "does not raise when reaper.kill raises during close" do
+      client = described_class.new
+      reaper = instance_double(Thread)
+      allow(reaper).to receive(:kill).and_raise(ThreadError, "already dead")
+      client.instance_variable_set(:@reaper, reaper)
+      expect { client.close }.not_to raise_error
+    end
+
+    it "does not raise when finish raises during close" do
+      client = described_class.new
+      conn = double("Net::HTTP")
+      allow(conn).to receive(:finish).and_raise(IOError, "already closed")
+      client.send(:checkin, "localhost:8000", conn)
+
+      expect { client.close }.not_to raise_error
+    end
+  end
+
+  describe "rescue paths in pool management" do
+    let(:client) { described_class.new(pool_size: 1) }
+    let(:key)    { "localhost:8000" }
+
+    it "does not raise when finish raises on pool-overflow eviction" do
+      conn1 = double("Net::HTTP 1", finish: nil)
+      conn2 = double("Net::HTTP 2")
+      allow(conn2).to receive(:finish).and_raise(IOError, "already closed")
+      client.send(:checkin, key, conn1)
+      expect { client.send(:checkin, key, conn2) }.not_to raise_error
+    end
+
+    it "does not raise when finish raises on stale-connection eviction during checkout" do
+      stale_conn = double("Net::HTTP stale")
+      allow(stale_conn).to receive(:finish).and_raise(IOError, "already closed")
+      base_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(base_time)
+      client.send(:checkin, key, stale_conn)
+
+      expired_time = base_time + Pinot::HttpClient::DEFAULT_KEEP_ALIVE_TIMEOUT
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(expired_time)
+      fresh_conn = double("Net::HTTP fresh", start: nil, open_timeout: nil, read_timeout: nil, write_timeout: nil)
+      allow(fresh_conn).to receive(:"open_timeout=")
+      allow(fresh_conn).to receive(:"read_timeout=")
+      allow(fresh_conn).to receive(:"write_timeout=")
+      allow(fresh_conn).to receive(:use_ssl=)
+      allow(fresh_conn).to receive(:start).and_return(fresh_conn)
+      allow(Net::HTTP).to receive(:new).and_return(fresh_conn)
+      expect { client.send(:checkout, key, URI.parse("http://localhost:8000")) }.not_to raise_error
+    end
+
+    it "does not raise when finish raises on stale-connection eviction during reap" do
+      conn = double("Net::HTTP stale")
+      allow(conn).to receive(:finish).and_raise(IOError, "already closed")
+      base_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(base_time)
+      client.send(:checkin, key, conn)
+
+      expired_time = base_time + Pinot::HttpClient::DEFAULT_KEEP_ALIVE_TIMEOUT
+      allow(Process).to receive(:clock_gettime).with(Process::CLOCK_MONOTONIC).and_return(expired_time)
+      expect { client.send(:reap_stale_connections) }.not_to raise_error
+    end
+
+    it "swallows finish errors when an inner error propagates from with_connection" do
+      conn = double("Net::HTTP")
+      allow(conn).to receive(:finish).and_raise(IOError, "already closed")
+      allow(conn).to receive(:request).and_raise(Errno::ECONNRESET)
+      allow(conn).to receive(:open_timeout=)
+      allow(conn).to receive(:read_timeout=)
+      allow(conn).to receive(:write_timeout=)
+      allow(conn).to receive(:use_ssl=)
+      allow(conn).to receive(:start).and_return(conn)
+      allow(Net::HTTP).to receive(:new).and_return(conn)
+      transport = Pinot::JsonHttpTransport.new(http_client: described_class.new)
+      expect do
+        transport.execute("localhost:8000", Pinot::Request.new("sql", "SELECT 1", false, false))
+      end.to raise_error(Errno::ECONNRESET)
     end
   end
 

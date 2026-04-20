@@ -197,6 +197,11 @@ RSpec/DescribeMethod:
 RSpec/MultipleDescribes:
   Enabled: false
 
+RSpec/AnyInstance:
+  Exclude:
+    # railtie_spec uses allow_any_instance_of(Object) to simulate LoadError on require
+    - "spec/pinot/railtie_spec.rb"
+
 RSpec/IdenticalEqualityAssertion:
   Enabled: false
 

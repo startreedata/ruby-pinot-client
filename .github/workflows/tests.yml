@@ -16,6 +16,35 @@ permissions:
   contents: read
 
 jobs:
+  security:
+    runs-on: ubuntu-latest
+    name: Security Audit
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: false
+
+      - name: Cache gems
+        uses: actions/cache@v5
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-ruby-3.2-gems-${{ hashFiles('Gemfile.lock', 'pinot.gemspec') }}
+          restore-keys: |
+            ${{ runner.os }}-ruby-3.2-gems-
+
+      - name: Install gems
+        run: bundle config set --local path vendor/bundle && bundle install
+
+      - name: Update advisory database
+        run: bundle exec bundle-audit update
+
+      - name: Check for vulnerable dependencies
+        run: bundle exec bundle-audit check --format text
+
   lint:
     runs-on: ubuntu-latest
     name: RuboCop Lint

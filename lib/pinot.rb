@@ -24,6 +24,7 @@ require_relative "pinot/paginator"
 require_relative "pinot/connection"
 require_relative "pinot/prepared_statement"
 require_relative "pinot/connection_factory"
+require_relative "pinot/schema_client"
 
 require_relative "pinot/grpc_config"
 begin
@@ -36,3 +37,5 @@ begin
   require_relative "pinot/zookeeper_broker_selector"
 rescue LoadError # rubocop:disable Lint/SuppressedException
 end
+
+require_relative "pinot/railtie" if defined?(Rails::Railtie)

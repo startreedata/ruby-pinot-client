@@ -110,11 +110,8 @@ module Pinot
         if raw.include?(".") || raw.include?("e") || raw.include?("E")
           # Floating point string — check if it's a whole number
           bd = BigDecimal(raw)
-          begin
-            return 0 if bd.infinite? || bd.nan?
-          rescue StandardError
-            return 0
-          end
+          return 0 if bd.infinite? || bd.nan?
+
           int_val = bd.to_i
           return 0 unless bd == BigDecimal(int_val.to_s)
           return 0 if int_val > INT32_MAX || int_val < INT32_MIN
@@ -139,11 +136,8 @@ module Pinot
       begin
         if raw.include?(".") || raw.include?("e") || raw.include?("E")
           bd = BigDecimal(raw)
-          begin
-            return 0 if bd.infinite? || bd.nan?
-          rescue StandardError
-            return 0
-          end
+          return 0 if bd.infinite? || bd.nan?
+
           int_val = bd.to_i
           return 0 unless bd == BigDecimal(int_val.to_s)
 
