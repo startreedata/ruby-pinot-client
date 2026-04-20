@@ -64,6 +64,7 @@ RSpec.describe Pinot::Railtie do
 
   after do
     Pinot::ActiveSupportNotifications.uninstall!
+    Pinot::OpenTelemetry.uninstall! if Pinot::OpenTelemetry.installed?
     Pinot::Instrumentation.on_query = nil
   end
 
@@ -115,6 +116,16 @@ RSpec.describe Pinot::Railtie do
       expect do
         described_class.run_initializer("pinot.install_open_telemetry", app)
       end.not_to raise_error
+    end
+
+    it "installs the OTel bridge when opentelemetry gem is available" do
+      app_config.pinot[:open_telemetry] = true
+      # Treat both requires as already satisfied (no-op)
+      allow_any_instance_of(Object).to receive(:require).with("opentelemetry").and_return(false)
+      allow_any_instance_of(Object).to receive(:require).with("pinot/open_telemetry").and_return(false)
+      Pinot::OpenTelemetry.uninstall! if Pinot::OpenTelemetry.installed?
+      described_class.run_initializer("pinot.install_open_telemetry", app)
+      expect(Pinot::OpenTelemetry).to be_installed
     end
   end
 
