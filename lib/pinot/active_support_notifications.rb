@@ -48,7 +48,7 @@ module Pinot
     def self.install!
       return if installed?
 
-      Pinot::Instrumentation.on_query = method(:notify)
+      @listener  = Pinot::Instrumentation.subscribe(method(:notify))
       @installed = true
     end
 
@@ -57,7 +57,8 @@ module Pinot
     end
 
     def self.uninstall!
-      Pinot::Instrumentation.on_query = nil
+      Pinot::Instrumentation.unsubscribe(@listener) if @listener
+      @listener  = nil
       @installed = false
     end
 
