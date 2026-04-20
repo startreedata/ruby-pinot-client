@@ -4,7 +4,7 @@ RSpec.describe Pinot::BrokerResponse do
   end
 
   describe "SQL selection query response" do
-    subject(:resp) { Pinot::BrokerResponse.from_json(selection_json) }
+    subject(:resp) { described_class.from_json(selection_json) }
 
     it "parses stat fields" do
       expect(resp.aggregation_results.length).to eq 0
@@ -23,7 +23,7 @@ RSpec.describe Pinot::BrokerResponse do
       expect(resp.result_table).not_to be_nil
       expect(resp.selection_results).to be_nil
       expect(resp.time_used_ms).to eq 6
-      expect(resp.total_docs).to eq 97889
+      expect(resp.total_docs).to eq 97_889
       expect(resp.trace_info.length).to eq 0
     end
 
@@ -36,7 +36,8 @@ RSpec.describe Pinot::BrokerResponse do
                           hits hitsByPitch homeRuns intentionalWalks league numberOfGames
                           numberOfGamesAsBatter playerID playerName playerStint runs runsBattedIn
                           sacrificeFlies sacrificeHits stolenBases strikeouts teamID tripples yearID]
-      expected_types = %w[INT INT INT INT INT INT INT INT INT INT STRING INT INT STRING STRING INT INT INT INT INT INT INT STRING INT INT]
+      expected_types = %w[INT INT INT INT INT INT INT INT INT INT STRING INT INT STRING STRING INT INT INT INT INT INT
+                          INT STRING INT INT]
 
       25.times do |i|
         expect(rt.column_name(i)).to eq expected_names[i]
@@ -46,11 +47,11 @@ RSpec.describe Pinot::BrokerResponse do
   end
 
   describe "SQL aggregation query response" do
+    subject(:resp) { described_class.from_json(json) }
+
     let(:json) do
       '{"resultTable":{"dataSchema":{"columnDataTypes":["LONG"],"columnNames":["cnt"]},"rows":[[97889]]},"exceptions":[],"numServersQueried":1,"numServersResponded":1,"numSegmentsQueried":1,"numSegmentsProcessed":1,"numSegmentsMatched":1,"numConsumingSegmentsQueried":0,"numDocsScanned":97889,"numEntriesScannedInFilter":0,"numEntriesScannedPostFilter":0,"numGroupsLimitReached":false,"totalDocs":97889,"timeUsedMs":5,"segmentStatistics":[],"traceInfo":{},"minConsumingFreshnessTimeMs":0}'
     end
-
-    subject(:resp) { Pinot::BrokerResponse.from_json(json) }
 
     it "parses result table" do
       rt = resp.result_table
@@ -59,19 +60,19 @@ RSpec.describe Pinot::BrokerResponse do
       expect(rt.column_name(0)).to eq "cnt"
       expect(rt.column_data_type(0)).to eq "LONG"
       expect(rt.get(0, 0)).to eq Pinot::JsonNumber.new("97889")
-      expect(rt.get_int(0, 0)).to eq 97889
-      expect(rt.get_long(0, 0)).to eq 97889
-      expect(rt.get_float(0, 0)).to eq 97889.0
-      expect(rt.get_double(0, 0)).to eq 97889.0
+      expect(rt.get_int(0, 0)).to eq 97_889
+      expect(rt.get_long(0, 0)).to eq 97_889
+      expect(rt.get_float(0, 0)).to eq 97_889.0
+      expect(rt.get_double(0, 0)).to eq 97_889.0
     end
   end
 
   describe "SQL aggregation group-by response" do
+    subject(:resp) { described_class.from_json(json) }
+
     let(:json) do
       '{"resultTable":{"dataSchema":{"columnDataTypes":["STRING","LONG","DOUBLE"],"columnNames":["teamID","cnt","sum_homeRuns"]},"rows":[["ANA",337,1324.0],["BL2",197,136.0],["ARI",727,2715.0],["BL1",48,24.0],["ALT",17,2.0],["ATL",1951,7312.0],["BFN",122,105.0],["BL3",36,32.0],["BFP",26,20.0],["BAL",2380,9164.0]]},"exceptions":[],"numServersQueried":1,"numServersResponded":1,"numSegmentsQueried":1,"numSegmentsProcessed":1,"numSegmentsMatched":1,"numConsumingSegmentsQueried":0,"numDocsScanned":97889,"numEntriesScannedInFilter":0,"numEntriesScannedPostFilter":195778,"numGroupsLimitReached":true,"totalDocs":97889,"timeUsedMs":24,"segmentStatistics":[],"traceInfo":{},"minConsumingFreshnessTimeMs":0}'
     end
-
-    subject(:resp) { Pinot::BrokerResponse.from_json(json) }
 
     it "parses group-by result table" do
       rt = resp.result_table
@@ -99,11 +100,11 @@ RSpec.describe Pinot::BrokerResponse do
   end
 
   describe "wrong type response (overflow/infinity)" do
+    subject(:resp) { described_class.from_json(json) }
+
     let(:json) do
       '{"resultTable":{"dataSchema":{"columnDataTypes":["STRING","LONG","DOUBLE"],"columnNames":["teamID","cnt","sum_homeRuns"]},"rows":[["ANA",9223372036854775808, 1e309]]},"exceptions":[],"numServersQueried":1,"numServersResponded":1,"numSegmentsQueried":1,"numSegmentsProcessed":1,"numSegmentsMatched":1,"numConsumingSegmentsQueried":0,"numDocsScanned":97889,"numEntriesScannedInFilter":0,"numEntriesScannedPostFilter":195778,"numGroupsLimitReached":true,"totalDocs":97889,"timeUsedMs":24,"segmentStatistics":[],"traceInfo":{},"minConsumingFreshnessTimeMs":0}'
     end
-
-    subject(:resp) { Pinot::BrokerResponse.from_json(json) }
 
     it "returns 0 for overflow values" do
       rt = resp.result_table
@@ -116,11 +117,11 @@ RSpec.describe Pinot::BrokerResponse do
   end
 
   describe "exception response" do
+    subject(:resp) { described_class.from_json(json) }
+
     let(:json) do
       '{"resultTable":{"dataSchema":{"columnDataTypes":["DOUBLE"],"columnNames":["max(league)"]},"rows":[]},"exceptions":[{"errorCode":200,"message":"QueryExecutionError:\\njava.lang.NumberFormatException: For input string: \\"UA\\""}],"numServersQueried":1,"numServersResponded":1,"numSegmentsQueried":1,"numSegmentsProcessed":0,"numSegmentsMatched":0,"numConsumingSegmentsQueried":0,"numDocsScanned":0,"numEntriesScannedInFilter":0,"numEntriesScannedPostFilter":0,"numGroupsLimitReached":false,"totalDocs":97889,"timeUsedMs":5,"segmentStatistics":[],"traceInfo":{},"minConsumingFreshnessTimeMs":0}'
     end
-
-    subject(:resp) { Pinot::BrokerResponse.from_json(json) }
 
     it "parses exceptions" do
       expect(resp.exceptions.length).to eq 1
@@ -140,14 +141,17 @@ end
 
 RSpec.describe Pinot::ResultTable do
   let(:result_table) do
-    Pinot::ResultTable.new(
+    described_class.new(
       "dataSchema" => {
         "columnDataTypes" => %w[INT LONG FLOAT DOUBLE STRING INT LONG FLOAT DOUBLE STRING],
-        "columnNames" => %w[int_val long_val float_val double_val string_val decimal_int decimal_long large_float large_double non_number]
+        "columnNames" => %w[int_val long_val float_val double_val string_val decimal_int decimal_long large_float
+                            large_double non_number]
       },
       "rows" => [
-        [123, 456789, 123.45, 789.123, 999, 42.0, 12345.0, 999999999999.0, 1.7976931348623157e+308, "not_a_number"],
-        [9223372036854775808, -9223372036854775809, 1e309, -1e309, "string_value", 42.5, 123.7, 3.4028235e+39, Float::INFINITY, 123]
+        [123, 456_789, 123.45, 789.123, 999, 42.0, 12_345.0, 999_999_999_999.0, 1.7976931348623157e+308,
+         "not_a_number"],
+        [9_223_372_036_854_775_808, -9_223_372_036_854_775_809, 1e309, -1e309, "string_value", 42.5, 123.7, 3.4028235e+39,
+         Float::INFINITY, 123]
       ]
     )
   end
@@ -158,11 +162,11 @@ RSpec.describe Pinot::ResultTable do
     end
 
     it "get_long for long" do
-      expect(result_table.get_long(0, 1)).to eq 456789
+      expect(result_table.get_long(0, 1)).to eq 456_789
     end
 
     it "get_float for float" do
-      expect(result_table.get_float(0, 2)).to eq 123.45.to_f
+      expect(result_table.get_float(0, 2)).to eq 123.45
     end
 
     it "get_double for double" do
@@ -178,11 +182,11 @@ RSpec.describe Pinot::ResultTable do
     end
 
     it "decimal 12345.0 converts to long 12345" do
-      expect(result_table.get_long(0, 6)).to eq 12345
+      expect(result_table.get_long(0, 6)).to eq 12_345
     end
 
     it "get_float for large number" do
-      expect(result_table.get_float(0, 7)).to eq 999999999999.0
+      expect(result_table.get_float(0, 7)).to eq 999_999_999_999.0
     end
 
     it "get_double for large double" do
@@ -259,7 +263,7 @@ RSpec.describe Pinot::ResultTable do
 
   describe "get methods with malformed input" do
     let(:rt) do
-      Pinot::ResultTable.new(
+      described_class.new(
         "dataSchema" => {
           "columnDataTypes" => %w[INT STRING DOUBLE],
           "columnNames" => %w[invalid_json string_val valid_double]
@@ -296,12 +300,12 @@ RSpec.describe Pinot::ResultTable do
 
   describe "edge cases for numeric types" do
     let(:rt) do
-      Pinot::ResultTable.new(
+      described_class.new(
         "dataSchema" => {
           "columnDataTypes" => %w[INT INT LONG FLOAT FLOAT],
           "columnNames" => %w[int_overflow_float int_overflow_int long_overflow float_inf float_ok]
         },
-        "rows" => [[2147483648.0, 2147483648, 9.223372036854776e19, Float::INFINITY, 3.14]]
+        "rows" => [[2_147_483_648.0, 2_147_483_648, 9.223372036854776e19, Float::INFINITY, 3.14]]
       )
     end
 
@@ -328,7 +332,7 @@ RSpec.describe Pinot::ResultTable do
 
   describe "utility methods" do
     let(:rt) do
-      Pinot::ResultTable.new(
+      described_class.new(
         "dataSchema" => {
           "columnDataTypes" => %w[INT STRING DOUBLE],
           "columnNames" => %w[col1 col2 col3]
@@ -369,24 +373,24 @@ RSpec.describe Pinot::ResultTable do
 
   describe "boundary values" do
     let(:rt) do
-      Pinot::ResultTable.new(
+      described_class.new(
         "dataSchema" => {
           "columnDataTypes" => %w[INT LONG FLOAT DOUBLE],
           "columnNames" => %w[int_max long_max float_max double_max]
         },
         "rows" => [
-          [2147483647, 9223372036854775807, 3.4028234e+38, 1.7976931348623157e+308],
-          [-2147483648, -9223372036854775808, -3.4028234e+38, -1.7976931348623157e+308]
+          [2_147_483_647, 9_223_372_036_854_775_807, 3.4028234e+38, 1.7976931348623157e+308],
+          [-2_147_483_648, -9_223_372_036_854_775_808, -3.4028234e+38, -1.7976931348623157e+308]
         ]
       )
     end
 
     it "int32 max" do
-      expect(rt.get_int(0, 0)).to eq 2147483647
+      expect(rt.get_int(0, 0)).to eq 2_147_483_647
     end
 
     it "int64 max" do
-      expect(rt.get_long(0, 1)).to eq 9223372036854775807
+      expect(rt.get_long(0, 1)).to eq 9_223_372_036_854_775_807
     end
 
     it "float32 near max is non-zero" do
@@ -399,11 +403,11 @@ RSpec.describe Pinot::ResultTable do
     end
 
     it "int32 min" do
-      expect(rt.get_int(1, 0)).to eq(-2147483648)
+      expect(rt.get_int(1, 0)).to eq(-2_147_483_648)
     end
 
     it "int64 min" do
-      expect(rt.get_long(1, 1)).to eq(-9223372036854775808)
+      expect(rt.get_long(1, 1)).to eq(-9_223_372_036_854_775_808)
     end
 
     it "float32 near min is non-zero" do
@@ -418,7 +422,7 @@ RSpec.describe Pinot::ResultTable do
 
   describe "INT32_MAX + 1 overflow" do
     let(:rt) do
-      Pinot::ResultTable.new(
+      described_class.new(
         "dataSchema" => { "columnDataTypes" => %w[INT INT], "columnNames" => %w[overflow_int exact_max] },
         "rows" => [[Pinot::INT32_MAX + 1, Pinot::INT32_MAX]]
       )
@@ -435,7 +439,7 @@ RSpec.describe Pinot::ResultTable do
 
   describe "get_float with Infinity string" do
     let(:rt) do
-      Pinot::ResultTable.new(
+      described_class.new(
         "dataSchema" => { "columnDataTypes" => %w[FLOAT DOUBLE], "columnNames" => %w[pos_inf neg_inf] },
         # Use string "Infinity" coerced into a fake JsonNumber via manual row construction
         "rows" => []
@@ -444,7 +448,7 @@ RSpec.describe Pinot::ResultTable do
 
     it "returns 0.0 for JsonNumber containing 'Infinity'" do
       # Manually build a ResultTable with a JsonNumber("Infinity") cell
-      rt2 = Pinot::ResultTable.new(
+      rt2 = described_class.new(
         "dataSchema" => { "columnDataTypes" => %w[FLOAT], "columnNames" => %w[val] },
         "rows" => []
       )
@@ -455,7 +459,7 @@ RSpec.describe Pinot::ResultTable do
     end
 
     it "returns 0.0 for JsonNumber containing '-Infinity'" do
-      rt2 = Pinot::ResultTable.new(
+      rt2 = described_class.new(
         "dataSchema" => { "columnDataTypes" => %w[DOUBLE], "columnNames" => %w[val] },
         "rows" => []
       )
@@ -467,7 +471,7 @@ RSpec.describe Pinot::ResultTable do
 
   describe "get_string on non-JsonNumber cell" do
     let(:rt) do
-      Pinot::ResultTable.new(
+      described_class.new(
         "dataSchema" => { "columnDataTypes" => %w[STRING], "columnNames" => %w[val] },
         "rows" => [["plain_string"]]
       )
@@ -482,20 +486,20 @@ end
 RSpec.describe Pinot::BrokerResponse, "missing resultTable key" do
   it "result_table is nil when resultTable key is absent from response JSON" do
     json = '{"exceptions":[],"numServersQueried":1,"numServersResponded":1,"timeUsedMs":1}'
-    resp = Pinot::BrokerResponse.from_json(json)
+    resp = described_class.from_json(json)
     expect(resp.result_table).to be_nil
   end
 end
 
 RSpec.describe Pinot::SelectionResults do
   it "parses columns and results from hash" do
-    sr = Pinot::SelectionResults.new("columns" => ["a", "b"], "results" => [[1, 2], [3, 4]])
-    expect(sr.columns).to eq ["a", "b"]
+    sr = described_class.new("columns" => %w[a b], "results" => [[1, 2], [3, 4]])
+    expect(sr.columns).to eq %w[a b]
     expect(sr.results).to eq [[1, 2], [3, 4]]
   end
 
   it "defaults to empty arrays when keys are absent" do
-    sr = Pinot::SelectionResults.new({})
+    sr = described_class.new({})
     expect(sr.columns).to eq []
     expect(sr.results).to eq []
   end
@@ -503,34 +507,34 @@ end
 
 RSpec.describe Pinot::AggregationResult do
   it "parses all fields from hash" do
-    ar = Pinot::AggregationResult.new(
+    ar = described_class.new(
       "function" => "count", "value" => "42",
-      "groupByColumns" => ["col1"], "groupByResult" => [{"group" => ["v1"], "value" => "42"}]
+      "groupByColumns" => ["col1"], "groupByResult" => [{ "group" => ["v1"], "value" => "42" }]
     )
     expect(ar.function).to eq "count"
     expect(ar.value).to eq "42"
     expect(ar.group_by_columns).to eq ["col1"]
-    expect(ar.group_by_result).to eq [{"group" => ["v1"], "value" => "42"}]
+    expect(ar.group_by_result).to eq [{ "group" => ["v1"], "value" => "42" }]
   end
 end
 
 RSpec.describe Pinot::JsonNumber do
   describe "#==" do
     it "returns true when comparing two JsonNumbers with the same raw value" do
-      expect(Pinot::JsonNumber.new(42)).to eq Pinot::JsonNumber.new(42)
+      expect(described_class.new(42)).to eq described_class.new(42)
     end
 
     it "returns false when comparing to a non-JsonNumber" do
-      expect(Pinot::JsonNumber.new(42)).not_to eq 42
-      expect(Pinot::JsonNumber.new(42)).not_to eq "42"
-      expect(Pinot::JsonNumber.new(42)).not_to eq nil
+      expect(described_class.new(42)).not_to eq 42
+      expect(described_class.new(42)).not_to eq "42"
+      expect(described_class.new(42)).not_to be_nil
     end
   end
 end
 
 RSpec.describe Pinot::ResultTable, "get_int and get_long with malformed raw" do
   let(:rt) do
-    rt = Pinot::ResultTable.new(
+    rt = described_class.new(
       "dataSchema" => { "columnDataTypes" => %w[INT LONG], "columnNames" => %w[a b] },
       "rows" => []
     )

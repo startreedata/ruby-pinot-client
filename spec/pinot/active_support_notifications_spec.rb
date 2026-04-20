@@ -41,7 +41,10 @@ RSpec.describe Pinot::ActiveSupportNotifications do
     end
 
     it "is idempotent — calling install! twice does not raise" do
-      expect { described_class.install!; described_class.install! }.not_to raise_error
+      expect do
+        described_class.install!
+        described_class.install!
+      end.not_to raise_error
     end
 
     it "marks itself as installed" do
@@ -146,7 +149,7 @@ RSpec.describe Pinot::ActiveSupportNotifications do
   describe "end-to-end with Connection" do
     let(:sql_response) do
       '{"resultTable":{"dataSchema":{"columnDataTypes":["LONG"],"columnNames":["cnt"]},"rows":[[1]]},' \
-      '"exceptions":[],"numServersQueried":1,"numServersResponded":1,"timeUsedMs":2}'
+        '"exceptions":[],"numServersQueried":1,"numServersResponded":1,"timeUsedMs":2}'
     end
 
     def build_conn
@@ -177,7 +180,11 @@ RSpec.describe Pinot::ActiveSupportNotifications do
       stub_request(:post, "http://localhost:8000/query/sql")
         .to_return(status: 503, body: "")
 
-      build_conn.execute_sql("orders", "SELECT 1") rescue nil
+      begin
+        build_conn.execute_sql("orders", "SELECT 1")
+      rescue StandardError
+        nil
+      end
 
       events = ActiveSupport::Notifications.recorded_events
       expect(events.size).to eq 1

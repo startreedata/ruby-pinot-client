@@ -138,7 +138,7 @@ module Pinot
 
     CircuitBreakerRegistry.new(
       failure_threshold: config.circuit_breaker_threshold || 5,
-      open_timeout:      config.circuit_breaker_timeout   || 30
+      open_timeout: config.circuit_breaker_timeout || 30
     )
   end
   private_class_method :build_circuit_breaker_registry

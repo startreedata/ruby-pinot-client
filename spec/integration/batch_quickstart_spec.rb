@@ -9,13 +9,13 @@ RSpec.describe "Pinot integration — batch queries" do
       client = pinot_client
       resp = client.execute_sql(table, count_query)
       expect(resp).not_to be_nil
-      expect(resp.result_table.get_long(0, 0)).to eq 97889
+      expect(resp.result_table.get_long(0, 0)).to eq 97_889
     end
 
     it "executes count(*) with multistage engine and returns 97889" do
       client = pinot_client(use_multistage: true)
       resp = client.execute_sql(table, count_query)
-      expect(resp.result_table.get_long(0, 0)).to eq 97889
+      expect(resp.result_table.get_long(0, 0)).to eq 97_889
     end
   end
 
@@ -28,7 +28,7 @@ RSpec.describe "Pinot integration — batch queries" do
       )
       client = Pinot.from_config(config)
       resp = client.execute_sql(table, count_query)
-      expect(resp.result_table.get_long(0, 0)).to eq 97889
+      expect(resp.result_table.get_long(0, 0)).to eq 97_889
     end
   end
 
@@ -37,7 +37,7 @@ RSpec.describe "Pinot integration — batch queries" do
       client = pinot_client
       200.times do
         resp = client.execute_sql(table, count_query)
-        expect(resp.result_table.get_long(0, 0)).to eq 97889
+        expect(resp.result_table.get_long(0, 0)).to eq 97_889
       end
     end
   end

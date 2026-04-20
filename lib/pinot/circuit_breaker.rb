@@ -34,7 +34,8 @@ module Pinot
     OPEN      = :open
     HALF_OPEN = :half_open
 
-    BrokerCircuitOpenError = Class.new(BrokerNotFoundError)
+    class BrokerCircuitOpenError < BrokerNotFoundError
+    end
 
     attr_reader :state, :failure_count
 
@@ -48,14 +49,14 @@ module Pinot
     end
 
     # Call the block; record success/failure and enforce open-circuit rejection.
-    def call(broker_address)
+    def call(_broker_address)
       @mutex.synchronize { check_state! }
       begin
         result = yield
         @mutex.synchronize { on_success }
         result
       rescue BrokerUnavailableError, Errno::ECONNRESET, Errno::ECONNREFUSED,
-             Errno::ETIMEDOUT, Net::OpenTimeout, Net::ReadTimeout, Net::WriteTimeout => e
+             Errno::ETIMEDOUT, Net::OpenTimeout, Net::ReadTimeout, Net::WriteTimeout
         @mutex.synchronize { on_failure }
         raise
       end
@@ -126,7 +127,7 @@ module Pinot
       @mutex.synchronize do
         @breakers[broker_address] ||= CircuitBreaker.new(
           failure_threshold: @failure_threshold,
-          open_timeout:      @open_timeout
+          open_timeout: @open_timeout
         )
       end
     end

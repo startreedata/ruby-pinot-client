@@ -50,10 +50,18 @@ module Pinot
     end
 
     def close
-      @reaper.kill rescue nil
+      begin
+        @reaper.kill
+      rescue StandardError
+        nil
+      end
       @pool_mutex.synchronize do
         @pool.each_value do |entries|
-          entries.each { |entry| entry.http.finish rescue nil }
+          entries.each do |entry|
+            entry.http.finish
+          rescue StandardError
+            nil
+          end
         end
         @pool.clear
       end
@@ -69,8 +77,12 @@ module Pinot
         result = yield http
         checkin(key, http)
         result
-      rescue => e
-        http.finish rescue nil
+      rescue StandardError => e
+        begin
+          http.finish
+        rescue StandardError
+          nil
+        end
         raise e
       end
     end
@@ -85,7 +97,11 @@ module Pinot
             fresh = entry.http
             break
           else
-            entry.http.finish rescue nil
+            begin
+              entry.http.finish
+            rescue StandardError
+              nil
+            end
           end
         end
         fresh
@@ -99,7 +115,11 @@ module Pinot
         if pool_for_key.size < @max_pool_size
           pool_for_key.push(PoolEntry.new(http, Process.clock_gettime(Process::CLOCK_MONOTONIC)))
         else
-          http.finish rescue nil
+          begin
+            http.finish
+          rescue StandardError
+            nil
+          end
         end
       end
     end
@@ -121,7 +141,11 @@ module Pinot
         @pool.each_value do |entries|
           entries.reject! do |entry|
             if now - entry.checked_in_at >= @keep_alive_timeout
-              entry.http.finish rescue nil
+              begin
+                entry.http.finish
+              rescue StandardError
+                nil
+              end
               true
             else
               false
@@ -156,11 +180,11 @@ module Pinot
             http.cert = OpenSSL::X509::Certificate.new(File.read(@tls_config.client_cert_file))
             http.key = OpenSSL::PKey.read(File.read(@tls_config.client_key_file))
           end
-          if @tls_config.insecure_skip_verify
-            http.verify_mode = OpenSSL::SSL::VERIFY_NONE
-          else
-            http.verify_mode = OpenSSL::SSL::VERIFY_PEER
-          end
+          http.verify_mode = if @tls_config.insecure_skip_verify
+                               OpenSSL::SSL::VERIFY_NONE
+                             else
+                               OpenSSL::SSL::VERIFY_PEER
+                             end
         end
       else
         http.use_ssl = false
@@ -216,9 +240,9 @@ module Pinot
         url = build_url(broker_address, request.query_format)
         body = build_body(request)
         headers = DEFAULT_HEADERS
-          .merge(@extra_headers)
-          .merge("X-Correlation-Id" => SecureRandom.uuid)
-          .merge(extra_request_headers)
+                    .merge(@extra_headers)
+                    .merge("X-Correlation-Id" => SecureRandom.uuid)
+                    .merge(extra_request_headers)
 
         resp = @http_client.post(url, body: body, headers: headers)
 
@@ -245,11 +269,11 @@ module Pinot
         broker_response
       rescue *RETRYABLE_HTTP_ERRORS, *RETRYABLE_ERRORS => e
         if attempts < max_attempts
-          sleep_ms = (@retry_interval_ms || 200) * (2 ** (attempts - 1))
+          sleep_ms = (@retry_interval_ms || 200) * (2**(attempts - 1))
           sleep(sleep_ms / 1000.0)
           retry
         end
-        raise Net::ReadTimeout === e || Net::WriteTimeout === e ? QueryTimeoutError.new(e.message) : e
+        raise(Net::ReadTimeout === e || Net::WriteTimeout === e ? QueryTimeoutError.new(e.message) : e)
       end
     end
 
@@ -282,9 +306,7 @@ module Pinot
       if request.query_format == "sql"
         parts << "groupByMode=sql;responseFormat=sql"
         parts << "useMultistageEngine=true" if request.use_multistage_engine
-        if @timeout_ms && @timeout_ms > 0
-          parts << "timeoutMs=#{@timeout_ms}"
-        end
+        parts << "timeoutMs=#{@timeout_ms}" if @timeout_ms && @timeout_ms > 0
         parts << "timeoutMs=#{request.query_timeout_ms}" if request.query_timeout_ms
       end
       parts.join(";")

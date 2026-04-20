@@ -123,7 +123,10 @@ RSpec.describe Pinot::OpenTelemetry do
     end
 
     it "is idempotent — calling install! twice does not raise" do
-      expect { described_class.install!; described_class.install! }.not_to raise_error
+      expect do
+        described_class.install!
+        described_class.install!
+      end.not_to raise_error
     end
 
     it "marks itself as installed" do
@@ -276,7 +279,11 @@ RSpec.describe Pinot::OpenTelemetry do
 
     it "sets span status to error with the exception message" do
       err = RuntimeError.new("boom")
-      Pinot::Instrumentation.instrument(table: "t", query: "Q") { raise err } rescue nil
+      begin
+        Pinot::Instrumentation.instrument(table: "t", query: "Q") { raise err }
+      rescue StandardError
+        nil
+      end
       expect(spans.first.status_set).to eq({ code: :error, message: "boom" })
     end
 
@@ -304,7 +311,11 @@ RSpec.describe Pinot::OpenTelemetry do
     it "fires subscribed listeners on failure" do
       events = []
       Pinot::Instrumentation.subscribe(->(e) { events << e })
-      Pinot::Instrumentation.instrument(table: "t", query: "Q") { raise RuntimeError, "err" } rescue nil
+      begin
+        Pinot::Instrumentation.instrument(table: "t", query: "Q") { raise "err" }
+      rescue StandardError
+        nil
+      end
       expect(events.first[:success]).to be false
       expect(events.first[:error]).to be_a(RuntimeError)
     end
@@ -326,10 +337,10 @@ RSpec.describe Pinot::OpenTelemetry do
   # ---- TraceContextInjector -------------------------------------------------
 
   describe "TraceContextInjector" do
-    let(:otel) { Pinot::OpenTelemetry }
+    let(:otel) { described_class }
     let(:sql_response) do
       '{"resultTable":{"dataSchema":{"columnDataTypes":["LONG"],"columnNames":["cnt"]},"rows":[[1]]},' \
-      '"exceptions":[],"numServersQueried":1,"numServersResponded":1,"timeUsedMs":2}'
+        '"exceptions":[],"numServersQueried":1,"numServersResponded":1,"timeUsedMs":2}'
     end
 
     def build_conn
@@ -344,7 +355,7 @@ RSpec.describe Pinot::OpenTelemetry do
 
     it "injects traceparent into the outbound request" do
       stub = stub_request(:post, "http://localhost:8000/query/sql")
-        .to_return(status: 200, body: sql_response)
+               .to_return(status: 200, body: sql_response)
 
       build_conn.execute_sql("orders", "SELECT count(*) FROM orders")
 

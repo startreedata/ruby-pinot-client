@@ -1,5 +1,7 @@
 RSpec.describe Pinot::ControllerResponse do
   describe "single table, single broker" do
+    subject(:cr) { described_class.new(raw) }
+
     let(:raw) do
       {
         "baseballStats" => [
@@ -7,8 +9,6 @@ RSpec.describe Pinot::ControllerResponse do
         ]
       }
     end
-
-    subject(:cr) { Pinot::ControllerResponse.new(raw) }
 
     it "extract_broker_list" do
       expect(cr.extract_broker_list).to eq ["h1:8000"]
@@ -20,6 +20,8 @@ RSpec.describe Pinot::ControllerResponse do
   end
 
   describe "multiple tables, shared brokers" do
+    subject(:cr) { described_class.new(raw) }
+
     let(:raw) do
       {
         "table1" => [
@@ -31,8 +33,6 @@ RSpec.describe Pinot::ControllerResponse do
         ]
       }
     end
-
-    subject(:cr) { Pinot::ControllerResponse.new(raw) }
 
     it "deduplicates broker list" do
       list = cr.extract_broker_list

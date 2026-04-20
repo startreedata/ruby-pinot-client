@@ -1,9 +1,9 @@
 require "bigdecimal"
 
 module Pinot
-  INT32_MAX =  2_147_483_647
+  INT32_MAX = 2_147_483_647
   INT32_MIN = -2_147_483_648
-  INT64_MAX =  9_223_372_036_854_775_807
+  INT64_MAX = 9_223_372_036_854_775_807
   INT64_MIN = -9_223_372_036_854_775_808
   FLOAT32_MAX = 3.4028235e+38
 
@@ -110,14 +110,20 @@ module Pinot
         if raw.include?(".") || raw.include?("e") || raw.include?("E")
           # Floating point string — check if it's a whole number
           bd = BigDecimal(raw)
-          return 0 if bd.infinite? || bd.nan? rescue return 0
+          begin
+            return 0 if bd.infinite? || bd.nan?
+          rescue StandardError
+            return 0
+          end
           int_val = bd.to_i
           return 0 unless bd == BigDecimal(int_val.to_s)
           return 0 if int_val > INT32_MAX || int_val < INT32_MIN
+
           int_val.to_i
         else
           int_val = Integer(raw)
           return 0 if int_val > INT32_MAX || int_val < INT32_MIN
+
           int_val
         end
       rescue ArgumentError, TypeError
@@ -133,16 +139,21 @@ module Pinot
       begin
         if raw.include?(".") || raw.include?("e") || raw.include?("E")
           bd = BigDecimal(raw)
-          return 0 if bd.infinite? || bd.nan? rescue return 0
+          begin
+            return 0 if bd.infinite? || bd.nan?
+          rescue StandardError
+            return 0
+          end
           int_val = bd.to_i
           return 0 unless bd == BigDecimal(int_val.to_s)
-          return 0 if int_val > INT64_MAX || int_val < INT64_MIN
-          int_val
+
         else
           int_val = Integer(raw)
-          return 0 if int_val > INT64_MAX || int_val < INT64_MIN
-          int_val
+
         end
+        return 0 if int_val > INT64_MAX || int_val < INT64_MIN
+
+        int_val
       rescue ArgumentError, TypeError
         0
       end
@@ -156,8 +167,10 @@ module Pinot
       begin
         f = Float(raw)
         return 0.0 if f.infinite? || f.nan?
+
         f32 = f.to_f
         return 0.0 if f32.abs > FLOAT32_MAX
+
         f32
       rescue ArgumentError, TypeError
         0.0
@@ -172,6 +185,7 @@ module Pinot
       begin
         f = Float(raw)
         return 0.0 if f.infinite? || f.nan?
+
         f
       rescue ArgumentError, TypeError
         0.0

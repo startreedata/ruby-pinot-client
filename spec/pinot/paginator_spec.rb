@@ -1,38 +1,38 @@
 RSpec.describe Pinot::Paginator do
-  let(:schema)      { { "columnDataTypes" => ["LONG", "STRING"], "columnNames" => ["id", "name"] } }
+  let(:schema)      { { "columnDataTypes" => %w[LONG STRING], "columnNames" => %w[id name] } }
   let(:broker)      { "localhost:8099" }
   let(:request_id)  { "236490978000000006" }
   let(:query)       { "SELECT * FROM t LIMIT 100" }
 
   def cursor_response(rows:, num_rows_result_set:, offset: 0, broker_host: "localhost", broker_port: 8099)
     JSON.generate(
-      "resultTable"       => { "dataSchema" => schema, "rows" => rows },
-      "exceptions"        => [],
+      "resultTable" => { "dataSchema" => schema, "rows" => rows },
+      "exceptions" => [],
       "numServersQueried" => 1,
       "numServersResponded" => 1,
-      "timeUsedMs"        => 1,
-      "requestId"         => request_id,
-      "numRowsResultSet"  => num_rows_result_set,
-      "offset"            => offset,
-      "numRows"           => rows.size,
-      "brokerHost"        => broker_host,
-      "brokerPort"        => broker_port,
-      "submissionTimeMs"  => 1_000_000,
-      "expirationTimeMs"  => 4_600_000
+      "timeUsedMs" => 1,
+      "requestId" => request_id,
+      "numRowsResultSet" => num_rows_result_set,
+      "offset" => offset,
+      "numRows" => rows.size,
+      "brokerHost" => broker_host,
+      "brokerPort" => broker_port,
+      "submissionTimeMs" => 1_000_000,
+      "expirationTimeMs" => 4_600_000
     )
   end
 
   def fetch_response(rows:, offset: 0)
     JSON.generate(
-      "resultTable"         => { "dataSchema" => schema, "rows" => rows },
-      "exceptions"          => [],
-      "numServersQueried"   => 1,
+      "resultTable" => { "dataSchema" => schema, "rows" => rows },
+      "exceptions" => [],
+      "numServersQueried" => 1,
       "numServersResponded" => 1,
-      "timeUsedMs"          => 1,
-      "requestId"           => request_id,
-      "numRowsResultSet"    => nil,
-      "offset"              => offset,
-      "numRows"             => rows.size
+      "timeUsedMs" => 1,
+      "requestId" => request_id,
+      "numRowsResultSet" => nil,
+      "offset" => offset,
+      "numRows" => rows.size
     )
   end
 
@@ -58,8 +58,8 @@ RSpec.describe Pinot::Paginator do
   describe "cursor submission" do
     it "POSTs to /query/sql?getCursor=true&numRows=N" do
       stub = stub_request(:post, "http://#{broker}/query/sql?getCursor=true&numRows=2")
-        .with(body: hash_including("sql" => query))
-        .to_return(status: 200, body: cursor_response(rows: [[1, "a"]], num_rows_result_set: 1))
+               .with(body: hash_including("sql" => query))
+               .to_return(status: 200, body: cursor_response(rows: [[1, "a"]], num_rows_result_set: 1))
 
       stub_request(:delete, "http://#{broker}/responseStore/#{request_id}")
         .to_return(status: 200, body: "")
@@ -76,7 +76,7 @@ RSpec.describe Pinot::Paginator do
         ))
 
       fetch_stub = stub_request(:get, "http://broker2.internal:8099/responseStore/#{request_id}/results?offset=2&numRows=2")
-        .to_return(status: 200, body: fetch_response(rows: [[3, "c"]], offset: 2))
+                     .to_return(status: 200, body: fetch_response(rows: [[3, "c"]], offset: 2))
 
       stub_request(:delete, "http://broker2.internal:8099/responseStore/#{request_id}")
         .to_return(status: 200, body: "")
@@ -143,7 +143,7 @@ RSpec.describe Pinot::Paginator do
         .to_return(status: 200, body: fetch_response(rows: [[3, "c"]], offset: 2))
 
       delete_stub = stub_request(:delete, "http://#{broker}/responseStore/#{request_id}")
-        .to_return(status: 200, body: "")
+                      .to_return(status: 200, body: "")
 
       build_paginator.each_page {}
       expect(delete_stub).to have_been_requested
@@ -225,7 +225,7 @@ RSpec.describe Pinot::Paginator do
 
     it "supports .map" do
       names = pager.map { |row| row[1] }
-      expect(names).to eq ["a", "b", "c"]
+      expect(names).to eq %w[a b c]
     end
 
     it "supports .select" do
@@ -242,7 +242,7 @@ RSpec.describe Pinot::Paginator do
         .to_return(status: 200, body: cursor_response(rows: [[1, "a"]], num_rows_result_set: 1))
 
       delete_stub = stub_request(:delete, "http://#{broker}/responseStore/#{request_id}")
-        .to_return(status: 200, body: "")
+                      .to_return(status: 200, body: "")
 
       # exhaust first so request_id is set
       build_paginator.each_page {}
@@ -323,7 +323,7 @@ RSpec.describe Pinot::Paginator do
 
   describe "Connection#paginate" do
     def build_conn
-      selector  = Pinot::SimpleBrokerSelector.new(["#{broker}"])
+      selector  = Pinot::SimpleBrokerSelector.new([broker.to_s])
       transport = Pinot::JsonHttpTransport.new(http_client: Pinot::HttpClient.new, extra_headers: {})
       conn      = Pinot::Connection.new(transport: transport, broker_selector: selector)
       selector.init
@@ -331,7 +331,7 @@ RSpec.describe Pinot::Paginator do
     end
 
     it "returns a Paginator" do
-      expect(build_conn.paginate(query)).to be_a(Pinot::Paginator)
+      expect(build_conn.paginate(query)).to be_a(described_class)
     end
 
     it "defaults page_size to DEFAULT_PAGE_SIZE" do

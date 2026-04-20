@@ -3,6 +3,10 @@ require "pinot/zookeeper_broker_selector"
 
 RSpec.describe Pinot::ZookeeperBrokerSelector do
   # Minimal fake ZK client — no real ZooKeeper needed.
+  subject(:selector) do
+    described_class.new(zk_path: "localhost:2181", zk_client: fake_zk)
+  end
+
   let(:external_view_json) do
     JSON.dump(
       "mapFields" => {
@@ -31,15 +35,9 @@ RSpec.describe Pinot::ZookeeperBrokerSelector do
         registered_blocks[path] = block
       end
 
-      allow(zk).to receive(:exists?).and_return(true)
-
       # Expose stored blocks so tests can fire them
-      allow(zk).to receive(:_registered_blocks).and_return(registered_blocks)
+      allow(zk).to receive_messages(exists?: true, _registered_blocks: registered_blocks)
     end
-  end
-
-  subject(:selector) do
-    described_class.new(zk_path: "localhost:2181", zk_client: fake_zk)
   end
 
   describe "#init" do
@@ -77,7 +75,7 @@ RSpec.describe Pinot::ZookeeperBrokerSelector do
 
     it "returns a broker from the all-broker list when no table is given" do
       broker = selector.select_broker("")
-      expect(["host1:8000", "host2:8001"]).to include(broker)
+      expect(broker).to(satisfy { |b| ["host1:8000", "host2:8001"].include?(b) })
     end
 
     it "returns a broker for a specific table (strips suffix before lookup)" do
@@ -154,9 +152,8 @@ RSpec.describe Pinot::ZookeeperBrokerSelector do
         }
       )
       zk = double("ZK")
-      allow(zk).to receive(:get).and_return([json, nil])
       allow(zk).to receive(:register)
-      allow(zk).to receive(:exists?).and_return(true)
+      allow(zk).to receive_messages(get: [json, nil], exists?: true)
 
       sel = described_class.new(zk_path: "localhost:2181", zk_client: zk)
       sel.init
@@ -174,9 +171,8 @@ RSpec.describe Pinot::ZookeeperBrokerSelector do
         }
       )
       zk = double("ZK")
-      allow(zk).to receive(:get).and_return([json, nil])
       allow(zk).to receive(:register)
-      allow(zk).to receive(:exists?).and_return(true)
+      allow(zk).to receive_messages(get: [json, nil], exists?: true)
 
       sel = described_class.new(zk_path: "localhost:2181", zk_client: zk)
       sel.init
@@ -188,9 +184,8 @@ RSpec.describe Pinot::ZookeeperBrokerSelector do
     it "empty mapFields results in empty broker list" do
       json = JSON.dump("mapFields" => {})
       zk = double("ZK")
-      allow(zk).to receive(:get).and_return([json, nil])
       allow(zk).to receive(:register)
-      allow(zk).to receive(:exists?).and_return(true)
+      allow(zk).to receive_messages(get: [json, nil], exists?: true)
 
       sel = described_class.new(zk_path: "localhost:2181", zk_client: zk)
       sel.init
@@ -202,9 +197,8 @@ RSpec.describe Pinot::ZookeeperBrokerSelector do
     it "select_broker raises BrokerNotFoundError when empty mapFields and table name empty" do
       json = JSON.dump("mapFields" => {})
       zk = double("ZK")
-      allow(zk).to receive(:get).and_return([json, nil])
       allow(zk).to receive(:register)
-      allow(zk).to receive(:exists?).and_return(true)
+      allow(zk).to receive_messages(get: [json, nil], exists?: true)
 
       sel = described_class.new(zk_path: "localhost:2181", zk_client: zk)
       sel.init
@@ -216,9 +210,8 @@ RSpec.describe Pinot::ZookeeperBrokerSelector do
     it "missing mapFields key is treated as empty (no crash)" do
       json = JSON.dump({})
       zk = double("ZK")
-      allow(zk).to receive(:get).and_return([json, nil])
       allow(zk).to receive(:register)
-      allow(zk).to receive(:exists?).and_return(true)
+      allow(zk).to receive_messages(get: [json, nil], exists?: true)
 
       sel = described_class.new(zk_path: "localhost:2181", zk_client: zk)
       expect { sel.init }.not_to raise_error

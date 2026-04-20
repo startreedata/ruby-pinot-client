@@ -49,9 +49,9 @@ RSpec.describe Pinot::Instrumentation do
       described_class.on_query = proc { |event| received = event }
 
       error = RuntimeError.new("boom")
-      expect {
+      expect do
         described_class.instrument(table: "t", query: "q") { raise error }
-      }.to raise_error(RuntimeError, "boom")
+      end.to raise_error(RuntimeError, "boom")
 
       expect(received[:success]).to be false
       expect(received[:error]).to equal(error)
@@ -69,9 +69,9 @@ RSpec.describe Pinot::Instrumentation do
 
     it "does not call callback when on_query is nil" do
       described_class.on_query = nil
-      expect {
+      expect do
         described_class.instrument(table: "t", query: "q") { :ok }
-      }.not_to raise_error
+      end.not_to raise_error
     end
 
     it "returns the block's return value" do

@@ -89,9 +89,7 @@ module Pinot
         raise ConfigurationError, "query_timeout_ms must be positive, got: #{query_timeout_ms}"
       end
 
-      if !pool_size.nil? && pool_size < 1
-        raise ConfigurationError, "pool_size must be at least 1, got: #{pool_size}"
-      end
+      raise ConfigurationError, "pool_size must be at least 1, got: #{pool_size}" if !pool_size.nil? && pool_size < 1
 
       if !keep_alive_timeout.nil? && keep_alive_timeout <= 0
         raise ConfigurationError, "keep_alive_timeout must be positive, got: #{keep_alive_timeout}"

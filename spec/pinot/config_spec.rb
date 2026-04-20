@@ -1,19 +1,19 @@
 RSpec.describe Pinot::ClientConfig do
   describe "#validate!" do
     it "passes with broker_list set" do
-      config = Pinot::ClientConfig.new(broker_list: ["localhost:8000"])
+      config = described_class.new(broker_list: ["localhost:8000"])
       expect { config.validate! }.not_to raise_error
     end
 
     it "passes with controller_config set" do
-      config = Pinot::ClientConfig.new(
+      config = described_class.new(
         controller_config: Pinot::ControllerConfig.new(controller_address: "localhost:9000")
       )
       expect { config.validate! }.not_to raise_error
     end
 
     it "raises ConfigurationError when nothing set" do
-      config = Pinot::ClientConfig.new
+      config = described_class.new
       expect { config.validate! }.to raise_error(
         Pinot::ConfigurationError,
         /ClientConfig requires at least one of/
@@ -21,7 +21,7 @@ RSpec.describe Pinot::ClientConfig do
     end
 
     it "raises ConfigurationError for negative http_timeout" do
-      config = Pinot::ClientConfig.new(
+      config = described_class.new(
         broker_list: ["localhost:8000"],
         http_timeout: -1
       )
@@ -32,7 +32,7 @@ RSpec.describe Pinot::ClientConfig do
     end
 
     it "raises ConfigurationError for zero query_timeout_ms" do
-      config = Pinot::ClientConfig.new(
+      config = described_class.new(
         broker_list: ["localhost:8000"],
         query_timeout_ms: 0
       )
@@ -43,7 +43,7 @@ RSpec.describe Pinot::ClientConfig do
     end
 
     it "returns self on success (chainable)" do
-      config = Pinot::ClientConfig.new(broker_list: ["localhost:8000"])
+      config = described_class.new(broker_list: ["localhost:8000"])
       expect(config.validate!).to equal(config)
     end
   end

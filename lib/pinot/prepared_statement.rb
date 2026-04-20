@@ -52,9 +52,8 @@ module Pinot
     def set(index, value)
       @mutex.synchronize do
         raise PreparedStatementClosedError, "prepared statement is closed" if @closed
-        unless index >= 1 && index <= @param_count
-          raise "parameter index #{index} is out of range [1, #{@param_count}]"
-        end
+        raise "parameter index #{index} is out of range [1, #{@param_count}]" unless index.between?(1, @param_count)
+
         @parameters[index - 1] = value
       end
       nil
@@ -63,13 +62,14 @@ module Pinot
     def execute(headers: {})
       @mutex.synchronize do
         raise PreparedStatementClosedError, "prepared statement is closed" if @closed
+
         @parameters.each_with_index do |p, i|
           raise "parameter at index #{i + 1} is not set" if p.nil?
         end
       end
       query = begin
         build_query(@parameters)
-      rescue => e
+      rescue StandardError => e
         raise "failed to build query: #{e.message}"
       end
       @connection.execute_sql(@table, query, headers: headers)
@@ -77,12 +77,11 @@ module Pinot
 
     def execute_with_params(*params, headers: {})
       @mutex.synchronize { raise PreparedStatementClosedError, "prepared statement is closed" if @closed }
-      if params.length != @param_count
-        raise "expected #{@param_count} parameters, got #{params.length}"
-      end
+      raise "expected #{@param_count} parameters, got #{params.length}" if params.length != @param_count
+
       query = begin
         build_query(params)
-      rescue => e
+      rescue StandardError => e
         raise "failed to build query: #{e.message}"
       end
       @connection.execute_sql(@table, query, headers: headers)
@@ -91,6 +90,7 @@ module Pinot
     def clear_parameters
       @mutex.synchronize do
         raise PreparedStatementClosedError, "prepared statement is closed" if @closed
+
         @parameters.fill(nil)
       end
       nil
@@ -105,14 +105,13 @@ module Pinot
     end
 
     def build_query(params)
-      if params.length != @param_count
-        raise "expected #{@param_count} parameters, got #{params.length}"
-      end
+      raise "expected #{@param_count} parameters, got #{params.length}" if params.length != @param_count
+
       result = ""
       params.each_with_index do |param, i|
         formatted = begin
           @connection.format_arg(param)
-        rescue => e
+        rescue StandardError => e
           raise "failed to format parameter: #{e.message}"
         end
         result += @parts[i] + formatted

@@ -86,8 +86,8 @@ RSpec.describe "Pinot factory methods" do
     it "passes http_timeout to HttpClient as timeout:" do
       fake_client = instance_double(Pinot::HttpClient)
       expect(Pinot::HttpClient).to receive(:new)
-        .with(timeout: 15, tls_config: nil, pool_size: nil, keep_alive_timeout: nil)
-        .and_return(fake_client)
+                                     .with(timeout: 15, tls_config: nil, pool_size: nil, keep_alive_timeout: nil)
+                                     .and_return(fake_client)
 
       config = Pinot::ClientConfig.new(
         broker_list: ["localhost:8000"],
@@ -99,8 +99,8 @@ RSpec.describe "Pinot factory methods" do
     it "passes pool_size and keep_alive_timeout to HttpClient" do
       fake_client = instance_double(Pinot::HttpClient)
       expect(Pinot::HttpClient).to receive(:new)
-        .with(timeout: nil, tls_config: nil, pool_size: 10, keep_alive_timeout: 60)
-        .and_return(fake_client)
+                                     .with(timeout: nil, tls_config: nil, pool_size: 10, keep_alive_timeout: 60)
+                                     .and_return(fake_client)
 
       config = Pinot::ClientConfig.new(
         broker_list: ["localhost:8000"],
@@ -112,12 +112,11 @@ RSpec.describe "Pinot factory methods" do
 
     it "uses ZookeeperBrokerSelector when zookeeper_config is set" do
       fake_zk = double("FakeZK")
-      allow(fake_zk).to receive(:get).and_return([
-        JSON.dump("mapFields" => { "myTable_OFFLINE" => { "Broker_host1_8000" => "ONLINE" } }),
-        nil
-      ])
       allow(fake_zk).to receive(:register)
-      allow(fake_zk).to receive(:exists?).and_return(true)
+      allow(fake_zk).to receive_messages(get: [
+                                           JSON.dump("mapFields" => { "myTable_OFFLINE" => { "Broker_host1_8000" => "ONLINE" } }),
+                                           nil
+                                         ], exists?: true)
 
       zk_config = Pinot::ZookeeperConfig.new(zk_path: "localhost:2181")
       config = Pinot::ClientConfig.new(zookeeper_config: zk_config)
@@ -134,12 +133,11 @@ RSpec.describe "Pinot factory methods" do
 
     it "passes query_timeout_ms to Connection and transport when zookeeper_config is set" do
       fake_zk = double("FakeZK")
-      allow(fake_zk).to receive(:get).and_return([
-        JSON.dump("mapFields" => { "myTable_OFFLINE" => { "Broker_host1_8000" => "ONLINE" } }),
-        nil
-      ])
       allow(fake_zk).to receive(:register)
-      allow(fake_zk).to receive(:exists?).and_return(true)
+      allow(fake_zk).to receive_messages(get: [
+                                           JSON.dump("mapFields" => { "myTable_OFFLINE" => { "Broker_host1_8000" => "ONLINE" } }),
+                                           nil
+                                         ], exists?: true)
 
       zk_config = Pinot::ZookeeperConfig.new(zk_path: "localhost:2181")
       config = Pinot::ClientConfig.new(zookeeper_config: zk_config, query_timeout_ms: 5000)
@@ -157,12 +155,11 @@ RSpec.describe "Pinot factory methods" do
 
     it "passes max_retries and retry_interval_ms to transport when zookeeper_config is set" do
       fake_zk = double("FakeZK")
-      allow(fake_zk).to receive(:get).and_return([
-        JSON.dump("mapFields" => { "myTable_OFFLINE" => { "Broker_host1_8000" => "ONLINE" } }),
-        nil
-      ])
       allow(fake_zk).to receive(:register)
-      allow(fake_zk).to receive(:exists?).and_return(true)
+      allow(fake_zk).to receive_messages(get: [
+                                           JSON.dump("mapFields" => { "myTable_OFFLINE" => { "Broker_host1_8000" => "ONLINE" } }),
+                                           nil
+                                         ], exists?: true)
 
       zk_config = Pinot::ZookeeperConfig.new(zk_path: "localhost:2181")
       config = Pinot::ClientConfig.new(

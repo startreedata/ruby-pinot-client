@@ -34,5 +34,5 @@ end
 
 begin
   require_relative "pinot/zookeeper_broker_selector"
-rescue LoadError
+rescue LoadError # rubocop:disable Lint/SuppressedException
 end

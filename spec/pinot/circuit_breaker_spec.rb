@@ -70,7 +70,11 @@ RSpec.describe Pinot::CircuitBreaker do
     end
 
     it "transitions to HALF_OPEN after open_timeout" do
-      breaker.call("broker") { "probe" } rescue nil
+      begin
+        breaker.call("broker") { "probe" }
+      rescue StandardError
+        nil
+      end
       # After open_timeout we allowed the probe through; success closes it
       expect(breaker.state).to eq :closed
     end

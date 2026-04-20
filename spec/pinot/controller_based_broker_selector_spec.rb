@@ -9,7 +9,7 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
         .to_return(status: 200, body: broker_response, headers: { "Content-Type" => "application/json" })
 
       config = Pinot::ControllerConfig.new(controller_address: "localhost:9000")
-      sel = Pinot::ControllerBasedBrokerSelector.new(config)
+      sel = described_class.new(config)
       sel.init
 
       broker = sel.select_broker("baseballStats")
@@ -21,7 +21,7 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
         .to_return(status: 200, body: "{}", headers: {})
 
       config = Pinot::ControllerConfig.new(controller_address: "localhost:9000", update_freq_ms: nil)
-      sel = Pinot::ControllerBasedBrokerSelector.new(config)
+      sel = described_class.new(config)
       sel.init
 
       expect(config.update_freq_ms).to eq 1000
@@ -32,7 +32,7 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
         .to_return(status: 500, body: "")
 
       config = Pinot::ControllerConfig.new(controller_address: "localhost:9000")
-      sel = Pinot::ControllerBasedBrokerSelector.new(config)
+      sel = described_class.new(config)
       expect { sel.init }.to raise_error(Pinot::TransportError, /500/)
     end
 
@@ -41,7 +41,7 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
         .to_raise(Errno::ECONNREFUSED)
 
       config = Pinot::ControllerConfig.new(controller_address: "localhost:9000")
-      sel = Pinot::ControllerBasedBrokerSelector.new(config)
+      sel = described_class.new(config)
       expect { sel.init }.to raise_error(Errno::ECONNREFUSED)
     end
 
@@ -50,13 +50,13 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
         .to_return(status: 200, body: "{not a valid json")
 
       config = Pinot::ControllerConfig.new(controller_address: "localhost:9000")
-      sel = Pinot::ControllerBasedBrokerSelector.new(config)
+      sel = described_class.new(config)
       expect { sel.init }.to raise_error(Pinot::ConfigurationError, /decoding controller API response/)
     end
   end
 
   describe "#build_controller_url" do
-    let(:sel) { Pinot::ControllerBasedBrokerSelector.new(Pinot::ControllerConfig.new) }
+    let(:sel) { described_class.new(Pinot::ControllerConfig.new) }
 
     it "adds http:// when no scheme" do
       expect(sel.build_controller_url("localhost:9000"))
@@ -93,7 +93,7 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
         end
 
       config = Pinot::ControllerConfig.new(controller_address: "localhost:9000", update_freq_ms: 500)
-      sel = Pinot::ControllerBasedBrokerSelector.new(config)
+      sel = described_class.new(config)
       sel.init
 
       expect(sel.select_broker("baseballStats")).to eq "host1:8000"
@@ -118,11 +118,14 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
         end
 
       config = Pinot::ControllerConfig.new(controller_address: "localhost:9000", update_freq_ms: 200)
-      sel = Pinot::ControllerBasedBrokerSelector.new(config)
+      sel = described_class.new(config)
 
       log_messages = []
       test_logger = Logger.new(StringIO.new)
-      test_logger.formatter = proc { |_sev, _dt, _prog, msg| log_messages << msg; "" }
+      test_logger.formatter = proc { |_sev, _dt, _prog, msg|
+        log_messages << msg
+        ""
+      }
       sel.instance_variable_set(:@logger, test_logger)
 
       sel.init
@@ -133,7 +136,7 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
   end
 
   describe "#build_controller_url additional scheme cases" do
-    let(:sel) { Pinot::ControllerBasedBrokerSelector.new(Pinot::ControllerConfig.new) }
+    let(:sel) { described_class.new(Pinot::ControllerConfig.new) }
 
     it "keeps https:// scheme from an address that starts with https://" do
       url = sel.build_controller_url("https://secure-controller:9443")
@@ -153,7 +156,7 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
         .to_return(status: 500, body: "Internal Server Error")
 
       config = Pinot::ControllerConfig.new(controller_address: "localhost:9000")
-      sel = Pinot::ControllerBasedBrokerSelector.new(config)
+      sel = described_class.new(config)
       expect { sel.init }.to raise_error(Pinot::TransportError, /500/)
     end
 
@@ -163,7 +166,7 @@ RSpec.describe Pinot::ControllerBasedBrokerSelector do
         .to_return(status: 200, body: valid_body, headers: { "Content-Type" => "application/json" })
 
       config = Pinot::ControllerConfig.new(controller_address: "localhost:9000")
-      sel = Pinot::ControllerBasedBrokerSelector.new(config)
+      sel = described_class.new(config)
       sel.init
 
       expect(sel.select_broker("myTable")).to eq "newhost:7777"

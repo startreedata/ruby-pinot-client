@@ -16,6 +16,32 @@ permissions:
   contents: read
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: RuboCop Lint
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: false
+
+      - name: Cache gems
+        uses: actions/cache@v5
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-ruby-3.2-gems-${{ hashFiles('Gemfile.lock', 'pinot.gemspec') }}
+          restore-keys: |
+            ${{ runner.os }}-ruby-3.2-gems-
+
+      - name: Install gems
+        run: bundle config set --local path vendor/bundle && bundle install
+
+      - name: Run RuboCop
+        run: bundle exec rubocop lib/ spec/ --format github
+
   unit-tests:
     runs-on: ubuntu-latest
     name: Unit Tests
