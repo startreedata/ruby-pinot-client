@@ -47,7 +47,7 @@ module Pinot
       meta.merge!(@config.extra_metadata)
 
       Pinot::Broker::Grpc::BrokerRequest.new(
-        sql:      request.query,
+        sql: request.query,
         metadata: meta
       )
     end

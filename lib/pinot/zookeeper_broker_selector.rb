@@ -1,12 +1,11 @@
 require "json"
-require "set"
 require_relative "table_aware_broker_selector"
 require_relative "errors"
 
 module Pinot
   class ZookeeperBrokerSelector < TableAwareBrokerSelector
     # ZK path where Pinot stores broker external view
-    BROKER_EXTERNAL_VIEW_PATH = "/EXTERNALVIEW/brokerResource"
+    BROKER_EXTERNAL_VIEW_PATH = "/EXTERNALVIEW/brokerResource".freeze
 
     def initialize(zk_path:, zk_client: nil)
       super()
@@ -39,9 +38,13 @@ module Pinot
     end
 
     def setup_watcher
-      @zk.register(BROKER_EXTERNAL_VIEW_PATH) do |event|
-        fetch_and_update rescue nil
-        setup_watcher  # re-register watch after each trigger
+      @zk.register(BROKER_EXTERNAL_VIEW_PATH) do |_event|
+        begin
+          fetch_and_update
+        rescue StandardError
+          nil
+        end
+        setup_watcher # re-register watch after each trigger
       end
       # Set initial watch
       @zk.exists?(BROKER_EXTERNAL_VIEW_PATH, watch: true)
@@ -61,12 +64,15 @@ module Pinot
         brokers = []
         broker_map.each do |broker_key, state|
           next unless state == "ONLINE"
+
           # Broker key format: Broker_<hostname>_<port>
           # Use the last segment as port and the second-to-last as host
           parts = broker_key.split("_")
           next if parts.length < 2
+
           port = parts.last
           next unless port =~ /\A\d+\z/
+
           host = parts[-2]
           brokers << "#{host}:#{port}"
         end

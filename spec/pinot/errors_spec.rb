@@ -49,21 +49,17 @@ RSpec.describe "Pinot error classes" do
 
   it "can rescue BrokerNotFoundError as Pinot::Error" do
     expect do
-      begin
-        raise Pinot::BrokerNotFoundError, "no broker"
-      rescue Pinot::Error
-        # rescued successfully
-      end
+      raise Pinot::BrokerNotFoundError, "no broker"
+    rescue Pinot::Error
+      # rescued successfully
     end.not_to raise_error
   end
 
   it "can rescue TableNotFoundError as Pinot::Error" do
     expect do
-      begin
-        raise Pinot::TableNotFoundError, "no table"
-      rescue Pinot::Error
-        # rescued successfully
-      end
+      raise Pinot::TableNotFoundError, "no table"
+    rescue Pinot::Error
+      # rescued successfully
     end.not_to raise_error
   end
 

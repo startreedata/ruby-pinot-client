@@ -2,8 +2,8 @@ module Pinot
   class TableAwareBrokerSelector
     include BrokerSelector
 
-    OFFLINE_SUFFIX  = "_OFFLINE"
-    REALTIME_SUFFIX = "_REALTIME"
+    OFFLINE_SUFFIX  = "_OFFLINE".freeze
+    REALTIME_SUFFIX = "_REALTIME".freeze
 
     def initialize
       @mutex = Mutex.new
@@ -20,11 +20,13 @@ module Pinot
       @mutex.synchronize do
         if table_name.empty?
           raise BrokerNotFoundError, "no available broker" if @all_broker_list.empty?
+
           return @all_broker_list.sample
         end
         brokers = @table_broker_map[table_name]
         raise TableNotFoundError, "unable to find table: #{table}" unless brokers
         raise BrokerNotFoundError, "no available broker for table: #{table}" if brokers.empty?
+
         brokers.sample
       end
     end

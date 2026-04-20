@@ -21,7 +21,7 @@ RSpec.describe Pinot::JsonHttpTransport do
       req = Pinot::Request.new("sql", "select count(*) from t", false, false)
       resp = transport.execute(broker, req)
       expect(resp).to be_a(Pinot::BrokerResponse)
-      expect(resp.result_table.get_long(0, 0)).to eq 97889
+      expect(resp.result_table.get_long(0, 0)).to eq 97_889
     end
   end
 
@@ -50,7 +50,7 @@ RSpec.describe Pinot::JsonHttpTransport do
       JSON.generate(
         "resultTable" => { "dataSchema" => { "columnDataTypes" => [], "columnNames" => [] }, "rows" => [] },
         "exceptions" => [{ "errorCode" => error_code, "message" => message }],
-        "numServersQueried" => 1, "numServersResponded" => 0, "timeUsedMs" => 10000
+        "numServersQueried" => 1, "numServersResponded" => 0, "timeUsedMs" => 10_000
       )
     end
 
@@ -118,10 +118,11 @@ RSpec.describe Pinot::JsonHttpTransport do
         .to_return do
           call_count += 1
           raise Net::ReadTimeout if call_count < 3
+
           { status: 200, body: sql_response }
         end
 
-      transport = Pinot::JsonHttpTransport.new(
+      transport = described_class.new(
         http_client: Pinot::HttpClient.new,
         max_retries: 2,
         retry_interval_ms: 0
@@ -209,7 +210,7 @@ RSpec.describe Pinot::JsonHttpTransport do
 
     it "sets X-Correlation-Id header" do
       stub_request(:post, "http://localhost:8000/query/sql")
-        .with { |r| r.headers["X-Correlation-Id"].to_s.length > 0 }
+        .with { |r| !r.headers["X-Correlation-Id"].to_s.empty? }
         .to_return(status: 200, body: sql_response)
 
       transport = build_transport
@@ -306,7 +307,7 @@ RSpec.describe Pinot::JsonHttpTransport do
       allow(spy_logger).to receive(:debug)
       expect(spy_logger).to receive(:error).with(/500/)
 
-      transport = Pinot::JsonHttpTransport.new(
+      transport = described_class.new(
         http_client: Pinot::HttpClient.new,
         logger: spy_logger
       )
@@ -321,7 +322,7 @@ RSpec.describe Pinot::JsonHttpTransport do
       spy_logger = instance_double(Logger)
       expect(spy_logger).to receive(:debug).with(/localhost:8000/)
 
-      transport = Pinot::JsonHttpTransport.new(
+      transport = described_class.new(
         http_client: Pinot::HttpClient.new,
         logger: spy_logger
       )
@@ -348,14 +349,12 @@ RSpec.describe Pinot::JsonHttpTransport do
       transport = build_retry_transport(max_retries: 0)
       allow(transport).to receive(:sleep)
 
-      expect {
-        begin
-          transport.execute(broker, req)
-        rescue Errno::ECONNRESET
-          call_count += 1
-          raise
-        end
-      }.to raise_error(Errno::ECONNRESET)
+      expect do
+        transport.execute(broker, req)
+      rescue Errno::ECONNRESET
+        call_count += 1
+        raise
+      end.to raise_error(Errno::ECONNRESET)
 
       expect(call_count).to eq(1)
       expect(transport).not_to have_received(:sleep)
@@ -382,7 +381,7 @@ RSpec.describe Pinot::JsonHttpTransport do
 
       resp = transport.execute(broker, req)
       expect(resp).to be_a(Pinot::BrokerResponse)
-      expect(resp.result_table.get_long(0, 0)).to eq(97889)
+      expect(resp.result_table.get_long(0, 0)).to eq(97_889)
     end
 
     it "retries on HTTP 503 response and raises BrokerUnavailableError when exhausted" do
@@ -462,16 +461,14 @@ RSpec.describe Pinot::HttpClient do
     allow(http).to receive(:read_timeout=)
     allow(http).to receive(:write_timeout=)
     allow(http).to receive(:keep_alive_timeout=)
-    allow(http).to receive(:start).and_return(http)
     allow(http).to receive(:finish)
-    allow(http).to receive(:request).and_return(response)
+    allow(http).to receive_messages(start: http, request: response)
     http
   end
 
   def make_response(body = "ok")
     resp = double("Net::HTTPResponse")
-    allow(resp).to receive(:code).and_return("200")
-    allow(resp).to receive(:body).and_return(body)
+    allow(resp).to receive_messages(code: "200", body: body)
     resp
   end
 
@@ -482,7 +479,7 @@ RSpec.describe Pinot::HttpClient do
       fake_http = make_fake_http(make_response)
       expect(Net::HTTP).to receive(:new).once.and_return(fake_http)
 
-      client = Pinot::HttpClient.new
+      client = described_class.new
       3.times { client.post(url, body: '{"sql":"select 1"}', headers: {}) }
     end
   end
@@ -501,7 +498,7 @@ RSpec.describe Pinot::HttpClient do
 
       expect(Net::HTTP).to receive(:new).twice.and_return(first_http, second_http)
 
-      client = Pinot::HttpClient.new
+      client = described_class.new
 
       expect { client.post(url, body: '{"sql":"select 1"}', headers: {}) }.to raise_error(Errno::ECONNRESET)
       client.post(url, body: '{"sql":"select 1"}', headers: {})
@@ -510,7 +507,7 @@ RSpec.describe Pinot::HttpClient do
 
   describe "configurable pool_size" do
     it "respects a custom pool_size" do
-      client = Pinot::HttpClient.new(pool_size: 2)
+      client = described_class.new(pool_size: 2)
       key = "localhost:8000"
 
       connections = Array.new(3) { double("Net::HTTP", finish: nil) }
@@ -522,7 +519,7 @@ RSpec.describe Pinot::HttpClient do
     end
 
     it "respects a custom keep_alive_timeout" do
-      client = Pinot::HttpClient.new(keep_alive_timeout: 5)
+      client = described_class.new(keep_alive_timeout: 5)
       key = "localhost:8000"
       base_time = 1_000_000.0
 
@@ -544,9 +541,9 @@ RSpec.describe Pinot::HttpClient do
 
   describe "pool cap" do
     it "caps the pool at DEFAULT_POOL_SIZE connections by default" do
-      client = Pinot::HttpClient.new
+      client = described_class.new
       key = "localhost:8000"
-      uri = URI.parse(url)
+      URI.parse(url)
 
       # Checkin DEFAULT_POOL_SIZE + 1 connections — the last one should be finished, not pooled
       n = Pinot::HttpClient::DEFAULT_POOL_SIZE + 1
@@ -563,7 +560,7 @@ RSpec.describe Pinot::HttpClient do
   end
 
   describe "TTL eviction" do
-    let(:client) { Pinot::HttpClient.new }
+    let(:client) { described_class.new }
     let(:key) { "localhost:8000" }
     let(:base_time) { 1_000_000.0 }
 
@@ -638,7 +635,7 @@ RSpec.describe Pinot::HttpClient do
 
   describe "#close" do
     it "finishes all pooled connections and clears the pool" do
-      client = Pinot::HttpClient.new
+      client = described_class.new
       # Manually checkin two fake connections
       conn1 = double("Net::HTTP", finish: nil)
       conn2 = double("Net::HTTP", finish: nil)
@@ -666,13 +663,13 @@ RSpec.describe Pinot::HttpClient do
       allow(http_double).to receive(:read_timeout=)
       allow(http_double).to receive(:write_timeout=)
       allow(http_double).to receive(:keep_alive_timeout=)
-      allow(http_double).to receive(:start).and_return(http_double)
       allow(http_double).to receive(:finish)
-      allow(http_double).to receive(:request).and_return(
-        instance_double(Net::HTTPResponse, code: "200", body: "{}")
-      )
+      allow(http_double).to receive_messages(start: http_double,
+                                             request: instance_double(
+                                               Net::HTTPResponse, code: "200", body: "{}"
+                                             ))
 
-      client = Pinot::HttpClient.new(timeout: 5)
+      client = described_class.new(timeout: 5)
       client.post("http://localhost:8000/query/sql", body: "{}")
 
       expect(http_double).to have_received(:open_timeout=).with(5)
@@ -688,13 +685,13 @@ RSpec.describe Pinot::HttpClient do
       allow(http_double).to receive(:read_timeout=)
       allow(http_double).to receive(:write_timeout=)
       allow(http_double).to receive(:keep_alive_timeout=)
-      allow(http_double).to receive(:start).and_return(http_double)
       allow(http_double).to receive(:finish)
-      allow(http_double).to receive(:request).and_return(
-        instance_double(Net::HTTPResponse, code: "200", body: "{}")
-      )
+      allow(http_double).to receive_messages(start: http_double,
+                                             request: instance_double(
+                                               Net::HTTPResponse, code: "200", body: "{}"
+                                             ))
 
-      client = Pinot::HttpClient.new
+      client = described_class.new
       client.post("http://localhost:8000/query/sql", body: "{}")
 
       expect(http_double).not_to have_received(:open_timeout=)
@@ -715,10 +712,9 @@ RSpec.describe Pinot::HttpClient do
       allow(mock_http).to receive(:read_timeout=)
       allow(mock_http).to receive(:write_timeout=)
       allow(mock_http).to receive(:keep_alive_timeout=)
-      allow(mock_http).to receive(:start).and_return(mock_http)
       allow(mock_http).to receive(:finish)
       mock_response = instance_double(Net::HTTPResponse, code: "200", body: "{}")
-      allow(mock_http).to receive(:request).and_return(mock_response)
+      allow(mock_http).to receive_messages(start: mock_http, request: mock_response)
       allow(Net::HTTP).to receive(:new).and_return(mock_http)
       mock_http
     end
@@ -726,7 +722,7 @@ RSpec.describe Pinot::HttpClient do
     describe "when tls_config has insecure_skip_verify: true" do
       it "configures Net::HTTP with VERIFY_NONE for HTTPS URLs" do
         tls = Pinot::TlsConfig.new(insecure_skip_verify: true)
-        client = Pinot::HttpClient.new(tls_config: tls)
+        client = described_class.new(tls_config: tls)
         mock_http = build_mock_http
 
         client.get("https://localhost:8000/query/sql")
@@ -738,7 +734,7 @@ RSpec.describe Pinot::HttpClient do
 
     describe "when tls_config is nil (default)" do
       it "does not apply SSL config for HTTP URLs" do
-        client = Pinot::HttpClient.new
+        client = described_class.new
         mock_http = build_mock_http
 
         client.get("http://localhost:8000/query/sql")
@@ -750,7 +746,7 @@ RSpec.describe Pinot::HttpClient do
 
     describe "HTTPS URL sets use_ssl = true" do
       it "sets use_ssl=true when URL scheme is https" do
-        client = Pinot::HttpClient.new
+        client = described_class.new
         mock_http = build_mock_http
 
         client.get("https://localhost:8000/query/sql")
@@ -762,7 +758,7 @@ RSpec.describe Pinot::HttpClient do
     describe "TLS config with insecure_skip_verify: false" do
       it "sets VERIFY_PEER (not VERIFY_NONE)" do
         tls = Pinot::TlsConfig.new(insecure_skip_verify: false)
-        client = Pinot::HttpClient.new(tls_config: tls)
+        client = described_class.new(tls_config: tls)
         mock_http = build_mock_http
 
         client.get("https://localhost:8000/query/sql")
@@ -774,9 +770,9 @@ RSpec.describe Pinot::HttpClient do
 
     describe "TLS config with CA cert + client cert + client key all set" do
       it "configures cert_store, cert, and key on the Net::HTTP object" do
-        ca_cert_file = File.expand_path("../../fixtures/ca.pem", __dir__)
-        client_cert_file = File.expand_path("../../fixtures/client.crt", __dir__)
-        client_key_file = File.expand_path("../../fixtures/client.key", __dir__)
+        File.expand_path("../../fixtures/ca.pem", __dir__)
+        File.expand_path("../../fixtures/client.crt", __dir__)
+        File.expand_path("../../fixtures/client.key", __dir__)
 
         # Create temporary fake cert files for the test
         require "tmpdir"
@@ -795,7 +791,7 @@ RSpec.describe Pinot::HttpClient do
           cert.public_key = key.public_key
           cert.not_before = Time.now - 1
           cert.not_after = Time.now + 3600
-          cert.sign(key, OpenSSL::Digest::SHA256.new)
+          cert.sign(key, OpenSSL::Digest.new("SHA256"))
 
           File.write(fake_ca, cert.to_pem)
           File.write(fake_cert, cert.to_pem)
@@ -807,7 +803,7 @@ RSpec.describe Pinot::HttpClient do
             client_key_file: fake_key,
             insecure_skip_verify: false
           )
-          client = Pinot::HttpClient.new(tls_config: tls)
+          client = described_class.new(tls_config: tls)
           mock_http = build_mock_http
 
           client.get("https://localhost:8000/query/sql")
@@ -830,14 +826,14 @@ RSpec.describe Pinot::JsonHttpTransport, "build_query_options precedence" do
 
   it "request.query_timeout_ms takes precedence and appears last in queryOptions when both transport timeout_ms and request.query_timeout_ms are set" do
     stub_request(:post, "http://localhost:8000/query/sql")
-      .with { |r|
+      .with do |r|
         opts = JSON.parse(r.body)["queryOptions"].to_s
         # Both values may appear — the request's value must be present
         opts.include?("timeoutMs=7777")
-      }
+      end
       .to_return(status: 200, body: sql_response)
 
-    transport = Pinot::JsonHttpTransport.new(
+    transport = described_class.new(
       http_client: Pinot::HttpClient.new,
       timeout_ms: 5000
     )

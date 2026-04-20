@@ -92,7 +92,7 @@ module Pinot
       duration_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000
       notify(table: table, query: query, duration_ms: duration_ms, success: true, error: nil)
       result
-    rescue => e
+    rescue StandardError => e
       duration_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000
       notify(table: table, query: query, duration_ms: duration_ms, success: false, error: e)
       raise

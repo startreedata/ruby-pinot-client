@@ -53,7 +53,7 @@ module Pinot
       @extra_headers  = extra_headers
 
       @request_id  = nil
-      @cursor_base = nil  # "http://host:port" — set after first response
+      @cursor_base = nil # "http://host:port" — set after first response
       @exhausted   = false
     end
 
@@ -136,11 +136,13 @@ module Pinot
 
     def broker_base(address)
       return address if address.start_with?("http://", "https://")
+
       "http://#{address}"
     end
 
     def broker_base_from_response(resp)
       return nil unless resp.broker_host && resp.broker_port
+
       "http://#{resp.broker_host}:#{resp.broker_port}"
     end
 

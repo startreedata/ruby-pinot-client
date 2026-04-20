@@ -4,7 +4,7 @@ require "json"
 
 module Pinot
   class ControllerBasedBrokerSelector < TableAwareBrokerSelector
-    CONTROLLER_API_PATH = "/v2/brokers/tables?state=ONLINE"
+    CONTROLLER_API_PATH = "/v2/brokers/tables?state=ONLINE".freeze
     DEFAULT_UPDATE_FREQ_MS = 1000
 
     def initialize(config, http_client = nil, logger: nil)
@@ -27,9 +27,8 @@ module Pinot
       addr = address.to_s
       if addr.include?("://")
         scheme = addr.split("://").first
-        unless %w[http https].include?(scheme)
-          raise ConfigurationError, "unsupported controller URL scheme: #{scheme}"
-        end
+        raise ConfigurationError, "unsupported controller URL scheme: #{scheme}" unless %w[http https].include?(scheme)
+
         addr.chomp("/") + CONTROLLER_API_PATH
       else
         "http://#{addr.chomp("/")}#{CONTROLLER_API_PATH}"
@@ -40,13 +39,11 @@ module Pinot
 
     def fetch_and_update
       headers = { "Accept" => "application/json" }
-        .merge(@config.extra_controller_api_headers || {})
+                  .merge(@config.extra_controller_api_headers || {})
 
       resp = @internal_http.get(@controller_url, headers: headers)
 
-      unless resp.code.to_i == 200
-        raise TransportError, "controller API returned HTTP status code #{resp.code}"
-      end
+      raise TransportError, "controller API returned HTTP status code #{resp.code}" unless resp.code.to_i == 200
 
       body = resp.body
       begin
@@ -70,7 +67,7 @@ module Pinot
           sleep interval
           begin
             fetch_and_update
-          rescue => e
+          rescue StandardError => e
             logger.warn "Pinot controller refresh failed: #{e.message}"
           end
         end

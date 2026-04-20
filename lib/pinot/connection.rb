@@ -34,9 +34,7 @@ module Pinot
       @circuit_breaker_registry = circuit_breaker_registry
     end
 
-    def use_multistage_engine=(val)
-      @use_multistage_engine = val
-    end
+    attr_writer :use_multistage_engine
 
     def open_trace
       @trace = true
@@ -91,8 +89,6 @@ module Pinot
     def execute_sql_with_params(table, query_pattern, params, query_timeout_ms: nil, headers: {})
       query = format_query(query_pattern, params)
       execute_sql(table, query, query_timeout_ms: query_timeout_ms, headers: headers)
-    rescue => e
-      raise e
     end
 
     # Execute multiple queries in parallel and return results in the same order.
@@ -121,7 +117,7 @@ module Pinot
     def execute_many(queries, max_concurrency: nil)
       return [] if queries.empty?
 
-      results  = Array.new(queries.size)
+      results = Array.new(queries.size)
       # Queue acts as a counting semaphore: pre-filled with N tokens.
       sem = max_concurrency ? build_semaphore(max_concurrency) : nil
 
@@ -131,14 +127,14 @@ module Pinot
         timeout_ms = item[:query_timeout_ms] || item["query_timeout_ms"]
 
         Thread.new do
-          sem&.pop   # acquire
+          sem&.pop # acquire
           begin
             resp = execute_sql(table, query, query_timeout_ms: timeout_ms)
             results[idx] = QueryResult.new(table: table, query: query, response: resp, error: nil)
-          rescue => e
+          rescue StandardError => e
             results[idx] = QueryResult.new(table: table, query: query, response: nil, error: e)
           ensure
-            sem&.push(:token)  # release
+            sem&.push(:token) # release
           end
         end
       end
@@ -166,9 +162,40 @@ module Pinot
         @transport.http_client,
         broker,
         query,
-        page_size:     page_size,
+        page_size: page_size,
         extra_headers: extra_headers
       )
+    end
+
+    # Check whether a broker is reachable and responding to queries.
+    #
+    # Runs a lightweight broker-side liveness check: first tries the dedicated
+    # +/health+ HTTP endpoint (returns 200 when the broker is healthy), and falls
+    # back to executing "SELECT 1 FROM DUAL" if the endpoint is unavailable.
+    #
+    # Returns +true+ when the broker responds successfully, +false+ on any
+    # error (connection refused, timeout, non-200 response, etc.). Never raises.
+    #
+    # Intended for Kubernetes readiness / liveness probes and health-check
+    # endpoints in Rails / Rack applications:
+    #
+    #   get "/healthz" do
+    #     conn.healthy? ? [200, "OK"] : [503, "Pinot unavailable"]
+    #   end
+    #
+    # @param table [String, nil] table used for broker selection (nil = any broker)
+    # @param timeout_ms [Integer] per-check timeout in ms (default 2000)
+    # @return [Boolean]
+    def healthy?(table: nil, timeout_ms: 2_000)
+      broker = @broker_selector.select_broker(table || "")
+      base   = broker.start_with?("http://", "https://") ? broker : "http://#{broker}"
+      client = HttpClient.new(timeout: timeout_ms / 1000.0)
+      resp   = client.get("#{base}/health", headers: {})
+      resp.code.to_i == 200
+    rescue StandardError
+      false
+    ensure
+      client&.close
     end
 
     # Create a PreparedStatement from a query template with +?+ placeholders.
@@ -185,8 +212,10 @@ module Pinot
     def prepare(table, query_template)
       raise ArgumentError, "table name cannot be empty" if table.nil? || table.strip.empty?
       raise ArgumentError, "query template cannot be empty" if query_template.nil? || query_template.strip.empty?
+
       count = query_template.count("?")
       raise ArgumentError, "query template must contain at least one parameter placeholder (?)" if count == 0
+
       PreparedStatementImpl.new(connection: self, table: table, query_template: query_template)
     end
 
@@ -196,12 +225,13 @@ module Pinot
       if placeholders != params.length
         raise "failed to format query: number of placeholders in queryPattern (#{placeholders}) does not match number of params (#{params.length})"
       end
+
       parts = pattern.split("?", -1)
       result = ""
       params.each_with_index do |param, i|
         formatted = begin
           format_arg(param)
-        rescue => e
+        rescue StandardError => e
           raise "failed to format query: failed to format parameter: #{e.message}"
         end
         result += parts[i] + formatted
@@ -213,11 +243,7 @@ module Pinot
       case value
       when String
         "'#{value.gsub("'", "''")}'"
-      when Integer
-        value.to_s
-      when Float
-        value.to_s
-      when TrueClass, FalseClass
+      when Integer, Float, TrueClass, FalseClass
         value.to_s
       when BigDecimal
         s = value.to_s("F")
@@ -239,9 +265,10 @@ module Pinot
       q
     end
 
-    def run_with_circuit_breaker(broker, &block)
+    def run_with_circuit_breaker(broker, &)
       return yield unless @circuit_breaker_registry
-      @circuit_breaker_registry.for(broker).call(broker, &block)
+
+      @circuit_breaker_registry.for(broker).call(broker, &)
     end
 
     def logger

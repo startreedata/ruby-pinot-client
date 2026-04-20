@@ -24,6 +24,7 @@ RSpec.describe Pinot::Connection do
 
   describe "#execute_sql instrumentation" do
     let(:conn) { build_connection }
+
     before { Pinot::Instrumentation.on_query = nil }
     after  { Pinot::Instrumentation.on_query = nil }
 
@@ -78,14 +79,14 @@ RSpec.describe Pinot::Connection do
       conn = build_connection
       resp = conn.execute_sql("", "select count(*) from t")
       expect(resp).to be_a(Pinot::BrokerResponse)
-      expect(resp.result_table.get_long(0, 0)).to eq 97889
+      expect(resp.result_table.get_long(0, 0)).to eq 97_889
     end
 
     it "raises when broker selector raises" do
       selector = double("selector")
       allow(selector).to receive(:select_broker).and_raise("error selecting broker")
       transport = double("transport")
-      conn = Pinot::Connection.new(transport: transport, broker_selector: selector)
+      conn = described_class.new(transport: transport, broker_selector: selector)
       expect { conn.execute_sql("", "q") }.to raise_error(/error selecting broker/)
     end
 
@@ -200,16 +201,16 @@ RSpec.describe Pinot::Connection do
 
     it "raises with param count mismatch" do
       conn = build_connection
-      expect {
+      expect do
         conn.execute_sql_with_params("", "SELECT * FROM table WHERE id = ? AND name = ?", [42])
-      }.to raise_error("failed to format query: number of placeholders in queryPattern (2) does not match number of params (1)")
+      end.to raise_error("failed to format query: number of placeholders in queryPattern (2) does not match number of params (1)")
     end
 
     it "raises for unsupported type" do
       conn = build_connection
-      expect {
+      expect do
         conn.execute_sql_with_params("", "SELECT * FROM table WHERE id = ?", [Object.new])
-      }.to raise_error(/failed to format query: failed to format parameter: unsupported type: Object/)
+      end.to raise_error(/failed to format query: failed to format parameter: unsupported type: Object/)
     end
 
     it "escapes single quotes in string params" do
@@ -225,15 +226,15 @@ RSpec.describe Pinot::Connection do
       selector = double("selector")
       allow(selector).to receive(:select_broker).and_raise("error selecting broker")
       transport = double("transport")
-      conn = Pinot::Connection.new(transport: transport, broker_selector: selector)
-      expect {
+      conn = described_class.new(transport: transport, broker_selector: selector)
+      expect do
         conn.execute_sql_with_params("baseballStats2", "SELECT * FROM t WHERE id = ?", [42])
-      }.to raise_error(/error selecting broker/)
+      end.to raise_error(/error selecting broker/)
     end
   end
 
   describe "#format_query" do
-    let(:conn) { Pinot::Connection.new(transport: double, broker_selector: double) }
+    let(:conn) { described_class.new(transport: double, broker_selector: double) }
 
     it "no params" do
       expect(conn.format_query("SELECT * FROM table", [])).to eq "SELECT * FROM table"
@@ -253,9 +254,9 @@ RSpec.describe Pinot::Connection do
     end
 
     it "raises on param count mismatch" do
-      expect {
+      expect do
         conn.format_query("SELECT * FROM table WHERE id = ? AND name = ?", [42])
-      }.to raise_error("failed to format query: number of placeholders in queryPattern (2) does not match number of params (1)")
+      end.to raise_error("failed to format query: number of placeholders in queryPattern (2) does not match number of params (1)")
     end
 
     it "escapes single quotes" do
@@ -265,7 +266,7 @@ RSpec.describe Pinot::Connection do
   end
 
   describe "#format_arg" do
-    let(:conn) { Pinot::Connection.new(transport: double, broker_selector: double) }
+    let(:conn) { described_class.new(transport: double, broker_selector: double) }
 
     it "string value" do
       expect(conn.format_arg("hello")).to eq "'hello'"
@@ -378,8 +379,8 @@ RSpec.describe Pinot::Connection do
 
       # Second call without headers should not include the first call's header
       stub = stub_request(:post, "http://localhost:8000/query/sql")
-        .with { |r| !r.headers.key?("X-Call") }
-        .to_return(status: 200, body: sql_response)
+               .with { |r| !r.headers.key?("X-Call") }
+               .to_return(status: 200, body: sql_response)
 
       conn.execute_sql("", "select 1")
       expect(stub).to have_been_requested

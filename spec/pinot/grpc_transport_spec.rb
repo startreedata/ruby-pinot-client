@@ -6,16 +6,19 @@ unless defined?(GRPC)
   module GRPC
     class BadStatus < StandardError
       attr_reader :code, :details
+
       def initialize(code, details = "")
         @code    = code
         @details = details
         super("#{code}: #{details}")
       end
     end
+
     module Core
       module StatusCodes
         UNAVAILABLE = 14
       end
+
       class ChannelCredentials; end
     end
   end
@@ -27,14 +30,17 @@ unless defined?(Pinot::Broker)
       module Grpc
         class BrokerRequest
           attr_accessor :sql, :metadata
+
           def initialize(sql: "", metadata: {})
             @sql      = sql
             @metadata = metadata
           end
         end
+
         class BrokerResponse
           attr_accessor :result_row_size, :payload
         end
+
         module PinotClientGrpcBrokerService
           class Stub
             def initialize(_addr, _creds); end
@@ -129,9 +135,8 @@ RSpec.describe Pinot::GrpcTransport do
 
   let(:grpc_response_double) do
     double("Pinot::Broker::Grpc::BrokerResponse",
-      result_row_size: 1,
-      payload: sql_response_json
-    )
+           result_row_size: 1,
+           payload: sql_response_json)
   end
 
   let(:stub_double) do
@@ -141,7 +146,7 @@ RSpec.describe Pinot::GrpcTransport do
   before do
     # Prevent real gRPC stub construction; inject our double
     allow(Pinot::Broker::Grpc::PinotClientGrpcBrokerService::Stub).to receive(:new)
-      .and_return(stub_double)
+                                                                        .and_return(stub_double)
     allow(stub_double).to receive(:submit).and_return(grpc_response_double)
   end
 
@@ -149,7 +154,7 @@ RSpec.describe Pinot::GrpcTransport do
     let(:request) { Pinot::Request.new("sql", "select count(*) from t", false, false) }
 
     it "calls stub.submit with the correct BrokerRequest" do
-      expect(stub_double).to receive(:submit) do |req, **opts|
+      expect(stub_double).to receive(:submit) do |req, **_opts|
         expect(req).to be_a(Pinot::Broker::Grpc::BrokerRequest)
         expect(req.sql).to eq("select count(*) from t")
         grpc_response_double
@@ -331,8 +336,8 @@ RSpec.describe Pinot::GrpcTransport do
       request = Pinot::Request.new("sql", "select 1", false, false)
 
       expect(Pinot::Broker::Grpc::PinotClientGrpcBrokerService::Stub).to receive(:new)
-        .with(broker_address, :this_channel_is_insecure)
-        .and_return(stub_double)
+                                                                           .with(broker_address, :this_channel_is_insecure)
+                                                                           .and_return(stub_double)
 
       transport.execute(broker_address, request)
     end
@@ -344,16 +349,20 @@ RSpec.describe Pinot::GrpcTransport do
       transport = described_class.new(config)
 
       allow(File).to receive(:read).with("/path/to/ca.crt").and_return(ca_cert_content)
-      allow(File).to receive(:read).with(nil).and_call_original rescue nil
+      begin
+        allow(File).to receive(:read).with(nil).and_call_original
+      rescue StandardError
+        nil
+      end
 
       ssl_creds_double = double("GRPC::Core::ChannelCredentials")
       expect(GRPC::Core::ChannelCredentials).to receive(:new)
-        .with(ca_cert_content, nil, nil)
-        .and_return(ssl_creds_double)
+                                                  .with(ca_cert_content, nil, nil)
+                                                  .and_return(ssl_creds_double)
 
       expect(Pinot::Broker::Grpc::PinotClientGrpcBrokerService::Stub).to receive(:new)
-        .with(broker_address, ssl_creds_double)
-        .and_return(stub_double)
+                                                                           .with(broker_address, ssl_creds_double)
+                                                                           .and_return(stub_double)
 
       request = Pinot::Request.new("sql", "select 1", false, false)
       transport.execute(broker_address, request)

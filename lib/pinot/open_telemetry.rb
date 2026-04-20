@@ -49,9 +49,9 @@ module Pinot
   # Note: this gem does NOT depend on opentelemetry-api or opentelemetry-sdk.
   # Both must be present and initialized before install! is called.
   module OpenTelemetry
-    SPAN_NAME    = "pinot.query"
-    DB_SYSTEM    = "pinot"
-    TRACER_NAME  = "pinot-client"
+    SPAN_NAME    = "pinot.query".freeze
+    DB_SYSTEM    = "pinot".freeze
+    TRACER_NAME  = "pinot-client".freeze
 
     @installed = false
     @enabled   = true
@@ -80,7 +80,7 @@ module Pinot
     def self.uninstall!
       ::Pinot::Instrumentation.around = nil
       @installed = false
-      # Note: JsonHttpTransport prepend is permanent once applied (Ruby limitation).
+      # NOTE: JsonHttpTransport prepend is permanent once applied (Ruby limitation).
       # Disable the propagator by unsetting the flag — it no-ops when disabled.
     end
 
@@ -111,7 +111,7 @@ module Pinot
             table: table, query: query, duration_ms: duration_ms, success: true, error: nil
           )
           result
-        rescue => e
+        rescue StandardError => e
           duration_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000
           span.record_exception(e)
           span.status = ::OpenTelemetry::Trace::Status.error(e.message)
@@ -126,9 +126,9 @@ module Pinot
 
     def self._span_attributes(table, query)
       attrs = {
-        "db.system"    => DB_SYSTEM,
+        "db.system" => DB_SYSTEM,
         "db.statement" => query,
-        "db.name"      => table.to_s
+        "db.name" => table.to_s
       }
       op = query.to_s.lstrip.split(/\s+/, 2).first&.upcase
       attrs["db.operation"] = op if op && !op.empty?
@@ -140,6 +140,7 @@ module Pinot
     # outbound HTTP request. Applied once via Module#prepend.
     def self._patch_transport
       return if ::Pinot::JsonHttpTransport.ancestors.include?(TraceContextInjector)
+
       ::Pinot::JsonHttpTransport.prepend(TraceContextInjector)
     end
     private_class_method :_patch_transport

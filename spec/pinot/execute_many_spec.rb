@@ -1,7 +1,7 @@
 RSpec.describe Pinot::Connection, "#execute_many" do
   let(:ok_body) do
     '{"resultTable":{"dataSchema":{"columnDataTypes":["LONG"],"columnNames":["cnt"]},"rows":[[1]]},' \
-    '"exceptions":[],"numServersQueried":1,"numServersResponded":1,"timeUsedMs":2}'
+      '"exceptions":[],"numServersQueried":1,"numServersResponded":1,"timeUsedMs":2}'
   end
 
   def build_connection(broker: "localhost:8000")
@@ -112,7 +112,11 @@ RSpec.describe Pinot::Connection, "#execute_many" do
     end
 
     it "limits in-flight threads to max_concurrency" do
-      concurrent_peak = Concurrent::AtomicFixnum.new(0) rescue nil
+      begin
+        Concurrent::AtomicFixnum.new(0)
+      rescue StandardError
+        nil
+      end
       active          = Mutex.new
       active_count    = 0
       peak            = 0

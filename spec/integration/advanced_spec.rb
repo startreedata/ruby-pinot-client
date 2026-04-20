@@ -23,7 +23,7 @@ RSpec.describe "Pinot integration — advanced queries" do
       rescue Pinot::TransportError => e
         # Alternatively Pinot may raise a transport-level error
         expect(e).to be_a(Pinot::TransportError)
-      rescue => e
+      rescue StandardError => e
         # Accept any error indicating the table doesn't exist
         expect(e.message).to match(/nonExistentTable123|table|not found|error/i)
       end

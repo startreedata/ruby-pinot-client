@@ -14,6 +14,7 @@ module Pinot
 
     def select_broker(_table)
       raise BrokerNotFoundError, "no pre-configured broker lists" if @broker_list.empty?
+
       @mutex.synchronize do
         broker = @broker_list[@index % @broker_list.size]
         @index += 1

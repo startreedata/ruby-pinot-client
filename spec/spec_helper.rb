@@ -9,9 +9,9 @@ end
 
 SimpleCov.start do
   formatter SimpleCov::Formatter::MultiFormatter.new([
-    SimpleCov::Formatter::HTMLFormatter,
-    SimpleCov::Formatter::LcovFormatter
-  ])
+                                                       SimpleCov::Formatter::HTMLFormatter,
+                                                       SimpleCov::Formatter::LcovFormatter
+                                                     ])
   add_filter "/spec/"
   add_filter "/vendor/"
   add_filter "/proto/"

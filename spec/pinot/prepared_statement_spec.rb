@@ -145,7 +145,8 @@ RSpec.describe Pinot::PreparedStatementImpl do
     let(:conn) { Pinot::Connection.new(transport: double, broker_selector: double) }
 
     it "formats 5 different param types correctly" do
-      stmt = conn.prepare("testTable", "SELECT * FROM testTable WHERE col1 = ? AND col2 = ? AND col3 = ? AND col4 = ? AND col5 = ?")
+      stmt = conn.prepare("testTable",
+                          "SELECT * FROM testTable WHERE col1 = ? AND col2 = ? AND col3 = ? AND col4 = ? AND col5 = ?")
       ps = stmt
 
       params = [
@@ -181,7 +182,9 @@ RSpec.describe Pinot::PreparedStatementImpl do
     it "prevents set after close" do
       stmt = conn.prepare("testTable", "SELECT * FROM testTable WHERE id = ?")
       stmt.close
-      expect { stmt.set_int(1, 123) }.to raise_error(Pinot::PreparedStatementClosedError, /prepared statement is closed/)
+      expect do
+        stmt.set_int(1, 123)
+      end.to raise_error(Pinot::PreparedStatementClosedError, /prepared statement is closed/)
     end
 
     it "prevents execute after close" do
@@ -193,13 +196,17 @@ RSpec.describe Pinot::PreparedStatementImpl do
     it "prevents execute_with_params after close" do
       stmt = conn.prepare("testTable", "SELECT * FROM testTable WHERE id = ?")
       stmt.close
-      expect { stmt.execute_with_params(123) }.to raise_error(Pinot::PreparedStatementClosedError, /prepared statement is closed/)
+      expect do
+        stmt.execute_with_params(123)
+      end.to raise_error(Pinot::PreparedStatementClosedError, /prepared statement is closed/)
     end
 
     it "prevents clear_parameters after close" do
       stmt = conn.prepare("testTable", "SELECT * FROM testTable WHERE id = ?")
       stmt.close
-      expect { stmt.clear_parameters }.to raise_error(Pinot::PreparedStatementClosedError, /prepared statement is closed/)
+      expect do
+        stmt.clear_parameters
+      end.to raise_error(Pinot::PreparedStatementClosedError, /prepared statement is closed/)
     end
   end
 
@@ -223,12 +230,12 @@ RSpec.describe Pinot::PreparedStatementImpl do
 
     it "formats complex baseball query" do
       stmt = conn.prepare("baseballStats",
-        "SELECT playerName, sum(homeRuns) as totalHomeRuns " \
-        "FROM baseballStats " \
-        "WHERE homeRuns > ? AND teamID = ? AND yearID BETWEEN ? AND ? " \
-        "GROUP BY playerID, playerName " \
-        "ORDER BY totalHomeRuns DESC " \
-        "LIMIT ?")
+                          "SELECT playerName, sum(homeRuns) as totalHomeRuns " \
+                          "FROM baseballStats " \
+                          "WHERE homeRuns > ? AND teamID = ? AND yearID BETWEEN ? AND ? " \
+                          "GROUP BY playerID, playerName " \
+                          "ORDER BY totalHomeRuns DESC " \
+                          "LIMIT ?")
 
       expect(stmt.get_parameter_count).to eq 5
 
@@ -236,11 +243,11 @@ RSpec.describe Pinot::PreparedStatementImpl do
       query = stmt.build_query(params)
 
       expected = "SELECT playerName, sum(homeRuns) as totalHomeRuns " \
-        "FROM baseballStats " \
-        "WHERE homeRuns > 0 AND teamID = 'OAK' AND yearID BETWEEN 2000 AND 2010 " \
-        "GROUP BY playerID, playerName " \
-        "ORDER BY totalHomeRuns DESC " \
-        "LIMIT 10"
+                 "FROM baseballStats " \
+                 "WHERE homeRuns > 0 AND teamID = 'OAK' AND yearID BETWEEN 2000 AND 2010 " \
+                 "GROUP BY playerID, playerName " \
+                 "ORDER BY totalHomeRuns DESC " \
+                 "LIMIT 10"
       expect(query).to eq expected
     end
   end

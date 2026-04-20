@@ -43,7 +43,7 @@ module Pinot
   # ActiveSupport::Notifications to already be defined at install! time (which
   # is always the case in a Rails process).
   module ActiveSupportNotifications
-    EVENT_NAME = "sql.pinot"
+    EVENT_NAME = "sql.pinot".freeze
 
     def self.install!
       return if installed?
@@ -64,10 +64,10 @@ module Pinot
 
     def self.notify(event)
       payload = {
-        sql:      event[:query],
-        name:     event[:table],
+        sql: event[:query],
+        name: event[:table],
         duration: event[:duration_ms],
-        success:  event[:success]
+        success: event[:success]
       }
 
       if (err = event[:error])
