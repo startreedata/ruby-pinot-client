@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Security Audit
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     name: RuboCop Lint
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -78,7 +78,7 @@ jobs:
       matrix:
         ruby-version: ["3.2", "3.3", "3.4"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Ruby ${{ matrix.ruby-version }}
         uses: ruby/setup-ruby@v1
@@ -124,7 +124,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Integration Tests
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
