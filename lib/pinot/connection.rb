@@ -122,8 +122,8 @@ module Pinot
       sem = max_concurrency ? build_semaphore(max_concurrency) : nil
 
       threads = queries.each_with_index.map do |item, idx|
-        table      = item[:table]           || item["table"]           || ""
-        query      = item[:query]           || item["query"]           || ""
+        table      = item[:table] || item["table"] || ""
+        query      = item[:query] || item["query"] || ""
         timeout_ms = item[:query_timeout_ms] || item["query_timeout_ms"]
 
         Thread.new do
