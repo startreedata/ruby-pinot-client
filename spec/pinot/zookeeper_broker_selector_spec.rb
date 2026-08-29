@@ -115,6 +115,16 @@ RSpec.describe Pinot::ZookeeperBrokerSelector do
       brokers = selector.instance_variable_get(:@all_broker_list)
       expect(brokers).to include("host9:9999")
     end
+
+    it "swallows refresh errors and re-registers the watcher" do
+      selector.init
+      allow(fake_zk).to receive(:get).and_raise(StandardError, "temporary ZooKeeper failure")
+
+      block = fake_zk._registered_blocks[Pinot::ZookeeperBrokerSelector::BROKER_EXTERNAL_VIEW_PATH]
+
+      expect { block.call(nil) }.not_to raise_error
+      expect(fake_zk).to have_received(:register).twice
+    end
   end
 
   describe "missing zk gem" do

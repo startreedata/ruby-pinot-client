@@ -77,23 +77,15 @@ module Pinot
         !grpc_config.nil?
       ].count(true)
 
-      if sources == 0
-        raise ConfigurationError, "ClientConfig requires at least one of: broker_list, controller_config, zookeeper_config, or grpc_config"
-      end
+      raise ConfigurationError, "ClientConfig requires at least one of: broker_list, controller_config, zookeeper_config, or grpc_config" if sources == 0
 
-      if !http_timeout.nil? && http_timeout <= 0
-        raise ConfigurationError, "http_timeout must be positive, got: #{http_timeout}"
-      end
+      raise ConfigurationError, "http_timeout must be positive, got: #{http_timeout}" if !http_timeout.nil? && http_timeout <= 0
 
-      if !query_timeout_ms.nil? && query_timeout_ms <= 0
-        raise ConfigurationError, "query_timeout_ms must be positive, got: #{query_timeout_ms}"
-      end
+      raise ConfigurationError, "query_timeout_ms must be positive, got: #{query_timeout_ms}" if !query_timeout_ms.nil? && query_timeout_ms <= 0
 
       raise ConfigurationError, "pool_size must be at least 1, got: #{pool_size}" if !pool_size.nil? && pool_size < 1
 
-      if !keep_alive_timeout.nil? && keep_alive_timeout <= 0
-        raise ConfigurationError, "keep_alive_timeout must be positive, got: #{keep_alive_timeout}"
-      end
+      raise ConfigurationError, "keep_alive_timeout must be positive, got: #{keep_alive_timeout}" if !keep_alive_timeout.nil? && keep_alive_timeout <= 0
 
       self
     end
