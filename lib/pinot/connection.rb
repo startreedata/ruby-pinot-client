@@ -222,9 +222,7 @@ module Pinot
     def format_query(pattern, params)
       params ||= []
       placeholders = pattern.count("?")
-      if placeholders != params.length
-        raise "failed to format query: number of placeholders in queryPattern (#{placeholders}) does not match number of params (#{params.length})"
-      end
+      raise "failed to format query: number of placeholders in queryPattern (#{placeholders}) does not match number of params (#{params.length})" if placeholders != params.length
 
       parts = pattern.split("?", -1)
       result = ""
