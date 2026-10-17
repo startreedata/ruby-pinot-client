@@ -1,3 +1,3 @@
 module Pinot
-  VERSION = "1.43.0".freeze
+  VERSION = "1.44.0".freeze
 end
