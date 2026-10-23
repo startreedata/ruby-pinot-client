@@ -7,9 +7,29 @@
 set -euo pipefail
 
 VERSION_FILE="lib/pinot/version.rb"
+LOCKFILE="Gemfile.lock"
 
 current() {
   grep -oE '[0-9]+\.[0-9]+\.[0-9]+' "$VERSION_FILE"
+}
+
+# Keep the PATH gem pin in Gemfile.lock in step with the gemspec version.
+# The gemspec reads Pinot::VERSION, so bumping version.rb changes the path
+# gem's version; a stale lockfile pin then fails `bundle install --frozen`
+# (deployment installs). Prefer `bundle lock` to regenerate the canonical
+# lockfile; fall back to an in-place edit of the pin when Bundler is absent.
+sync_lockfile() {
+  local v="$1"
+  [ -f "$LOCKFILE" ] || return 0
+
+  if command -v bundle >/dev/null 2>&1 && bundle lock --local >/dev/null 2>&1; then
+    echo "Synced $LOCKFILE via bundle lock"
+    return 0
+  fi
+
+  sed -i.bak -E "s/^(    pinot-client \()[0-9]+\.[0-9]+\.[0-9]+(\))$/\1${v}\2/" "$LOCKFILE"
+  rm -f "${LOCKFILE}.bak"
+  echo "Synced $LOCKFILE pinot-client pin to $v"
 }
 
 write_version() {
@@ -17,6 +37,7 @@ write_version() {
   sed -i.bak "s/VERSION = \".*\"/VERSION = \"$v\"/" "$VERSION_FILE"
   rm -f "${VERSION_FILE}.bak"
   echo "Bumped to $v"
+  sync_lockfile "$v"
 }
 
 if [ $# -eq 0 ]; then
