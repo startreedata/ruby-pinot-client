@@ -18,16 +18,36 @@ current() {
 # gem's version; a stale lockfile pin then fails `bundle install --frozen`
 # (deployment installs). Prefer `bundle lock` to regenerate the canonical
 # lockfile; fall back to an in-place edit of the pin when Bundler is absent.
+#
+# $v is normalized through RubyGems so the lockfile records the same spec
+# RubyGems would resolve (e.g. 1.5.0-rc1 -> 1.5.0.pre.rc1), matching the
+# gemspec that reads the raw Pinot::VERSION.
 sync_lockfile() {
   local v="$1"
   [ -f "$LOCKFILE" ] || return 0
 
-  if command -v bundle >/dev/null 2>&1 && bundle lock --local >/dev/null 2>&1; then
-    echo "Synced $LOCKFILE via bundle lock"
-    return 0
+  if command -v ruby >/dev/null 2>&1; then
+    v="$(ruby -e 'require "rubygems"; print Gem::Version.new(ARGV[0]).to_s' "$v" 2>/dev/null || echo "$v")"
   fi
 
-  sed -i.bak -E "s/^(    pinot-client \()[0-9]+\.[0-9]+\.[0-9]+(\))$/\1${v}\2/" "$LOCKFILE"
+  if command -v bundle >/dev/null 2>&1; then
+    # `bundle lock --local` regenerates the whole lockfile, which would also
+    # rewrite "BUNDLED WITH" to the locally installed Bundler version. Preserve
+    # the committed Bundler pin so the release commit carries no unrelated churn.
+    local prev_bundled_with
+    prev_bundled_with="$(awk '/^BUNDLED WITH$/{getline; gsub(/^ +/,""); print; exit}' "$LOCKFILE")"
+    if bundle lock --local >/dev/null 2>&1; then
+      if [ -n "$prev_bundled_with" ]; then
+        sed -i.bak -E "/^BUNDLED WITH$/{n;s/^   .*/   ${prev_bundled_with}/;}" "$LOCKFILE"
+        rm -f "${LOCKFILE}.bak"
+      fi
+      echo "Synced $LOCKFILE via bundle lock"
+      return 0
+    fi
+  fi
+
+  # Fallback: match any version inside the pinot-client pin parentheses.
+  sed -i.bak -E "s/^(    pinot-client \().*(\))$/\1${v}\2/" "$LOCKFILE"
   rm -f "${LOCKFILE}.bak"
   echo "Synced $LOCKFILE pinot-client pin to $v"
 }
