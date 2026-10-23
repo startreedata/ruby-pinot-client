@@ -34,12 +34,16 @@ sync_lockfile() {
     # `bundle lock --local` regenerates the whole lockfile, which would also
     # rewrite "BUNDLED WITH" to the locally installed Bundler version. Preserve
     # the committed Bundler pin so the release commit carries no unrelated churn.
+    # Capture the full original value line (with its exact indentation) and
+    # restore it verbatim after bundle lock, regardless of indentation width.
     local prev_bundled_with
-    prev_bundled_with="$(awk '/^BUNDLED WITH$/{getline; gsub(/^ +/,""); print; exit}' "$LOCKFILE")"
+    prev_bundled_with="$(awk '/^BUNDLED WITH$/{getline; print; exit}' "$LOCKFILE")"
     if bundle lock --local >/dev/null 2>&1; then
       if [ -n "$prev_bundled_with" ]; then
-        sed -i.bak -E "/^BUNDLED WITH$/{n;s/^   .*/   ${prev_bundled_with}/;}" "$LOCKFILE"
-        rm -f "${LOCKFILE}.bak"
+        awk -v repl="$prev_bundled_with" '
+          prev == "BUNDLED WITH" { print repl; prev = $0; next }
+          { print; prev = $0 }
+        ' "$LOCKFILE" > "${LOCKFILE}.tmp" && mv "${LOCKFILE}.tmp" "$LOCKFILE"
       fi
       echo "Synced $LOCKFILE via bundle lock"
       return 0
