@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    pinot-client (1.45.0)
+    pinot-client (1.46.0)
       logger
 
 GEM
