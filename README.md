@@ -359,6 +359,23 @@ Environment variables:
 | `BROKER_HOST` | `127.0.0.1` | Pinot broker hostname   |
 | `BROKER_PORT` | `8000`      | Pinot broker HTTP port  |
 
+## Releases
+
+Publishing is explicit; pushes to `main` do not release a gem. Run the
+**Release Decision** workflow (`release-decision.yml`) with `release_type` set to
+`patch`, `minor`, or `major` to bump the selected branch's current version and
+release it after the Ruby matrix and Pinot integration tests pass. `ref` defaults
+to `main`. The default `release_type: none` records the decision without changing
+a version, tag, or package:
+
+```bash
+gh workflow run release-decision.yml -f release_type=none -f ref=main
+```
+
+The existing **Release** workflow (`release.yml`) still accepts an explicit `tag`
+and `ref`, including prerelease tags. Choose either entry point for a release;
+do not dispatch both for the same version.
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a full history of releases.

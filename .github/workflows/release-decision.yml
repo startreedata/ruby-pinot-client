@@ -1,0 +1,65 @@
+name: Release Decision
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Release decision (none does not publish)"
+        required: true
+        type: choice
+        default: none
+        options:
+          - none
+          - patch
+          - minor
+          - major
+      ref:
+        description: "Branch to release (default: main)"
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  decision:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Record no-release decision
+        if: inputs.release_type == 'none'
+        run: echo "No release requested; no version, tag, or package will change." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v7
+        if: inputs.release_type != 'none'
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Choose next version
+        if: inputs.release_type != 'none'
+        id: version
+        env:
+          RELEASE_TYPE: ${{ inputs.release_type }}
+        run: |
+          case "$RELEASE_TYPE" in
+            major|minor|patch) ;;
+            *) echo "Invalid release type: $RELEASE_TYPE"; exit 1 ;;
+          esac
+          bin/bump-version "--$RELEASE_TYPE"
+          TAG="v$(grep -oE '[0-9]+\.[0-9]+\.[0-9]+' lib/pinot/version.rb)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Selected $RELEASE_TYPE release: $TAG" >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    needs: decision
+    if: needs.decision.outputs.tag != ''
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.decision.outputs.tag }}
+      ref: ${{ inputs.ref }}
+    secrets: inherit
