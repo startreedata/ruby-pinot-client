@@ -5,6 +5,14 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # simplecov >= 1.3.0 requires Ruby >= 3.3, but this gem supports
+      # Ruby >= 3.2 (see pinot.gemspec required_ruby_version and the
+      # tests.yml 3.2/3.3/3.4 matrix). Bumping simplecov past 1.2.x makes
+      # the lockfile unresolvable on Ruby 3.2, so hold it until the Ruby
+      # floor is raised.
+      - dependency-name: "simplecov"
+        versions: [">= 1.3.0"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
